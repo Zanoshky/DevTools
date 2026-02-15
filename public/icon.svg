@@ -1,0 +1,16 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" rx="128" fill="#09090b"/>
+  
+  <!-- Code icon (similar to Code2 from lucide) -->
+  <g transform="translate(128, 128)">
+    <!-- Left bracket -->
+    <path d="M100 64L36 128L100 192" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    
+    <!-- Right bracket -->
+    <path d="M156 64L220 128L156 192" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    
+    <!-- Middle slash -->
+    <path d="M140 48L116 208" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+</svg>

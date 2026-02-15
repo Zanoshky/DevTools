@@ -1,0 +1,205 @@
+import { Har } from "../har-types";
+
+export const sampleHarData: Har = {
+  log: {
+    version: "1.2",
+    creator: {
+      name: "Sample HAR Generator",
+      version: "1.0",
+    },
+    browser: {
+      name: "Chrome",
+      version: "125.0.0.0",
+    },
+    pages: [
+      {
+        startedDateTime: "2024-06-18T12:00:00.000Z",
+        id: "page_1",
+        title: "Sample Page",
+        pageTimings: {
+          onContentLoad: 500,
+          onLoad: 800,
+        },
+      },
+    ],
+    entries: [
+      {
+        pageref: "page_1",
+        startedDateTime: "2024-06-18T12:00:01.000Z",
+        time: 120,
+        request: {
+          method: "GET",
+          url: "https://example.com/",
+          httpVersion: "HTTP/2",
+          cookies: [],
+          headers: [
+            { name: "Accept", value: "text/html" },
+            { name: "User-Agent", value: "SampleAgent/1.0" },
+          ],
+          queryString: [],
+          headersSize: 150,
+          bodySize: 0,
+        },
+        response: {
+          status: 200,
+          statusText: "OK",
+          httpVersion: "HTTP/2",
+          cookies: [],
+          headers: [
+            { name: "Content-Type", value: "text/html" },
+            { name: "Cache-Control", value: "no-cache" },
+          ],
+          content: {
+            size: 1024,
+            mimeType: "text/html",
+            text: "<html>...</html>",
+          },
+          redirectURL: "",
+          headersSize: 120,
+          bodySize: 1024,
+        },
+        cache: {},
+        timings: {
+          send: 10,
+          wait: 100,
+          receive: 10,
+        },
+        serverIPAddress: "93.184.216.34",
+      },
+      {
+        pageref: "page_1",
+        startedDateTime: "2024-06-18T12:00:02.000Z",
+        time: 80,
+        request: {
+          method: "GET",
+          url: "https://example.com/style.css",
+          httpVersion: "HTTP/2",
+          cookies: [],
+          headers: [
+            { name: "Accept", value: "text/css" },
+            { name: "User-Agent", value: "SampleAgent/1.0" },
+          ],
+          queryString: [],
+          headersSize: 140,
+          bodySize: 0,
+        },
+        response: {
+          status: 200,
+          statusText: "OK",
+          httpVersion: "HTTP/2",
+          cookies: [],
+          headers: [
+            { name: "Content-Type", value: "text/css" },
+            { name: "Cache-Control", value: "public, max-age=31536000" },
+          ],
+          content: {
+            size: 512,
+            mimeType: "text/css",
+            text: "body { background: #fff; }",
+          },
+          redirectURL: "",
+          headersSize: 110,
+          bodySize: 512,
+        },
+        cache: {},
+        timings: {
+          send: 5,
+          wait: 65,
+          receive: 10,
+        },
+        serverIPAddress: "93.184.216.34",
+      },
+      {
+        pageref: "page_1",
+        startedDateTime: "2024-06-18T12:00:03.000Z",
+        time: 90,
+        request: {
+          method: "GET",
+          url: "https://example.com/script.js",
+          httpVersion: "HTTP/2",
+          cookies: [],
+          headers: [
+            { name: "Accept", value: "application/javascript" },
+            { name: "User-Agent", value: "SampleAgent/1.0" },
+          ],
+          queryString: [],
+          headersSize: 145,
+          bodySize: 0,
+        },
+        response: {
+          status: 200,
+          statusText: "OK",
+          httpVersion: "HTTP/2",
+          cookies: [],
+          headers: [
+            { name: "Content-Type", value: "application/javascript" },
+            { name: "Cache-Control", value: "public, max-age=31536000" },
+          ],
+          content: {
+            size: 2048,
+            mimeType: "application/javascript",
+            text: "console.log('Hello, world!');",
+          },
+          redirectURL: "",
+          headersSize: 115,
+          bodySize: 2048,
+        },
+        cache: {},
+        timings: {
+          send: 8,
+          wait: 72,
+          receive: 10,
+        },
+        serverIPAddress: "93.184.216.34",
+      },
+      {
+        pageref: "page_1",
+        startedDateTime: "2024-06-18T12:00:04.000Z",
+        time: 150,
+        request: {
+          method: "POST",
+          url: "https://example.com/api/data",
+          httpVersion: "HTTP/2",
+          cookies: [],
+          headers: [
+            { name: "Accept", value: "application/json" },
+            { name: "Content-Type", value: "application/json" },
+            { name: "User-Agent", value: "SampleAgent/1.0" },
+          ],
+          queryString: [],
+          postData: {
+            mimeType: "application/json",
+            text: '{"foo":"bar"}',
+          },
+          headersSize: 170,
+          bodySize: 15,
+        },
+        response: {
+          status: 201,
+          statusText: "Created",
+          httpVersion: "HTTP/2",
+          cookies: [],
+          headers: [
+            { name: "Content-Type", value: "application/json" },
+            { name: "Cache-Control", value: "no-store" },
+          ],
+          content: {
+            size: 128,
+            mimeType: "application/json",
+            text: '{"result":"ok"}',
+          },
+          redirectURL: "",
+          headersSize: 130,
+          bodySize: 128,
+        },
+        cache: {},
+        timings: {
+          send: 12,
+          wait: 120,
+          receive: 18,
+        },
+        serverIPAddress: "93.184.216.34",
+      },
+    ],
+  },
+};

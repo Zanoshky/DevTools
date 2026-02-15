@@ -1,0 +1,2 @@
+npm run version:bump
+git add package.json pnpm-lock.yaml

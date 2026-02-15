@@ -1,0 +1,83 @@
+.vanilla-jsoneditor-react {
+  display: flex;
+  flex: 1 1 auto;
+  height: 75vh; 
+  width: 100%; 
+  min-height: 200px;
+  box-sizing: border-box;
+  overflow: auto; 
+}
+
+/* Override VanillaJSONEditor colors to match theme */
+.jse-theme-dark .jse-menu {
+  background: hsl(var(--background)) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+}
+
+.jse-theme-dark .jse-button {
+  background: hsl(var(--secondary)) !important;
+  color: hsl(var(--foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+}
+
+.jse-theme-dark .jse-button:hover {
+  background: hsl(var(--accent)) !important;
+}
+
+.jse-theme-dark .jse-separator {
+  background: hsl(var(--border)) !important;
+}
+
+.jse-theme-dark .jse-main {
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.jse-theme-dark .jse-contents {
+  background: hsl(var(--background)) !important;
+}
+
+.jse-theme-dark .jse-text-mode {
+  background: hsl(var(--background)) !important;
+}
+
+.jse-theme-dark .jse-tree-mode {
+  background: hsl(var(--background)) !important;
+}
+
+/* Light theme overrides */
+:root:not(.dark) .jse-menu {
+  background: hsl(var(--background)) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+}
+
+:root:not(.dark) .jse-button {
+  background: hsl(var(--secondary)) !important;
+  color: hsl(var(--foreground)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+}
+
+:root:not(.dark) .jse-button:hover {
+  background: hsl(var(--accent)) !important;
+}
+
+:root:not(.dark) .jse-separator {
+  background: hsl(var(--border)) !important;
+}
+
+:root:not(.dark) .jse-main {
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+:root:not(.dark) .jse-contents {
+  background: hsl(var(--background)) !important;
+}
+
+:root:not(.dark) .jse-text-mode {
+  background: hsl(var(--background)) !important;
+}
+
+:root:not(.dark) .jse-tree-mode {
+  background: hsl(var(--background)) !important;
+}
