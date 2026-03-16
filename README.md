@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://devtoolbox.co">Live App</a> &middot;
+  <a href="https://dev.zanoski.com">Live App</a> &middot;
   <a href="https://gitlab.com/Zanoshky/dev-toolbox">GitLab</a> &middot;
   <a href="https://github.com/Zanoshky/DevTools">GitHub</a> &middot;
   <a href="https://www.buymeacoffee.com/zanoshky">Support</a>
