@@ -1,15 +1,17 @@
-"use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ToolLayout } from "@/components/tool-layout";
-import { CopyTextarea } from "@/components/copy-textarea";
+import { CodeEditor } from "@/components/code-editor";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { EmptyState } from "@/components/empty-state";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileCode } from "lucide-react";
+import { FileCode, Trash2 } from "lucide-react";
 import yaml from "js-yaml";
 
 type OutputFormat = "yaml" | "json";
@@ -34,11 +36,13 @@ export default function JsonToOpenApiPage() {
   const [output, setOutput] = useState("");
   const [error, setError] = useState("");
 
-  const generateSchema = (obj: unknown, schemaName: string): Record<string, unknown> => {
+  const isEmpty = input.length === 0 && output.length === 0;
+
+  const generateSchema = (obj: unknown, name: string): Record<string, unknown> => {
     if (Array.isArray(obj)) {
       return {
         type: "array",
-        items: obj.length > 0 ? generateSchema(obj[0], schemaName + "Item") : { type: "object" },
+        items: obj.length > 0 ? generateSchema(obj[0], name + "Item") : { type: "object" },
       };
     }
 
@@ -73,7 +77,6 @@ export default function JsonToOpenApiPage() {
     }
 
     if (typeof obj === "string") {
-      // Detect email format
       if (obj.includes("@")) {
         return { 
           type: "string",
@@ -103,7 +106,7 @@ export default function JsonToOpenApiPage() {
     return schemas;
   };
 
-  const generateOpenAPI = () => {
+  const generateOpenAPI = useCallback(() => {
     setError("");
     try {
       const json = JSON.parse(input);
@@ -183,9 +186,7 @@ export default function JsonToOpenApiPage() {
                   name: "id",
                   in: "path",
                   required: true,
-                  schema: {
-                    type: "string",
-                  },
+                  schema: { type: "string" },
                 },
               ],
               responses: {
@@ -199,9 +200,7 @@ export default function JsonToOpenApiPage() {
                     },
                   },
                 },
-                "404": {
-                  description: "Not found",
-                },
+                "404": { description: "Not found" },
               },
             },
             put: {
@@ -213,9 +212,7 @@ export default function JsonToOpenApiPage() {
                   name: "id",
                   in: "path",
                   required: true,
-                  schema: {
-                    type: "string",
-                  },
+                  schema: { type: "string" },
                 },
               ],
               requestBody: {
@@ -239,9 +236,7 @@ export default function JsonToOpenApiPage() {
                     },
                   },
                 },
-                "404": {
-                  description: "Not found",
-                },
+                "404": { description: "Not found" },
               },
             },
             patch: {
@@ -253,9 +248,7 @@ export default function JsonToOpenApiPage() {
                   name: "id",
                   in: "path",
                   required: true,
-                  schema: {
-                    type: "string",
-                  },
+                  schema: { type: "string" },
                 },
               ],
               requestBody: {
@@ -279,9 +272,7 @@ export default function JsonToOpenApiPage() {
                     },
                   },
                 },
-                "404": {
-                  description: "Not found",
-                },
+                "404": { description: "Not found" },
               },
             },
             delete: {
@@ -293,18 +284,12 @@ export default function JsonToOpenApiPage() {
                   name: "id",
                   in: "path",
                   required: true,
-                  schema: {
-                    type: "string",
-                  },
+                  schema: { type: "string" },
                 },
               ],
               responses: {
-                "204": {
-                  description: "Deleted successfully",
-                },
-                "404": {
-                  description: "Not found",
-                },
+                "204": { description: "Deleted successfully" },
+                "404": { description: "Not found" },
               },
             },
           },
@@ -332,7 +317,42 @@ export default function JsonToOpenApiPage() {
       setError("Invalid JSON: " + (err instanceof Error ? err.message : "Parse error"));
       setOutput("");
     }
-  };
+  }, [input, apiTitle, apiVersion, schemaName, outputFormat]);
+
+  const handleCopyOutput = useCallback(async () => {
+    if (!output) return;
+    try {
+      await navigator.clipboard.writeText(output);
+      toast({ description: "Copied to clipboard" });
+    } catch {
+      toast({ description: "Failed to copy", variant: "destructive" });
+    }
+  }, [output]);
+
+  const handleClear = useCallback(() => {
+    setInput("");
+    setOutput("");
+    setError("");
+  }, []);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "c",
+        ctrl: true,
+        shift: true,
+        action: handleCopyOutput,
+        description: "Copy output",
+      },
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
 
   return (
     <ToolLayout
@@ -342,7 +362,7 @@ export default function JsonToOpenApiPage() {
       <div className="space-y-3">
         {/* Info Alert */}
         <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
-          <FileCode className="h-4 w-4 text-blue-600" />
+          <FileCode className="h-4 w-4 text-blue-600" aria-hidden="true" />
           <AlertDescription className="text-xs">
             <strong>Complete REST API:</strong> Generates a full OpenAPI 3.0 spec with all CRUD operations (GET, POST, PUT, PATCH, DELETE), nested schemas, and example values.
           </AlertDescription>
@@ -402,52 +422,65 @@ export default function JsonToOpenApiPage() {
           </div>
         </div>
 
-        {/* Generate Button Row */}
-        <div className="flex justify-end">
-          <Button onClick={generateOpenAPI} size="sm">
-            <FileCode className="h-4 w-4 mr-2" />
-            Generate OpenAPI Spec
-          </Button>
-        </div>
+        {/* Action Toolbar */}
+        <ActionToolbar
+          right={
+            <>
+              <Button onClick={generateOpenAPI} size="sm" aria-label="Generate OpenAPI spec">
+                <FileCode className="h-4 w-4 mr-2" aria-hidden="true" />
+                Generate OpenAPI Spec
+              </Button>
+              <Button
+                onClick={handleClear}
+                variant="outline"
+                size="sm"
+                disabled={isEmpty}
+                aria-label="Clear all"
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            </>
+          }
+        />
 
         {/* Error */}
         {error && (
           <Alert variant="destructive">
-            <AlertDescription className="text-xs">{error}</AlertDescription>
+            <AlertDescription className="text-xs" role="alert">{error}</AlertDescription>
           </Alert>
         )}
 
         {/* Input/Output Side by Side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Input */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">JSON Sample</Label>
-            <CopyTextarea
+            <span className="text-sm font-medium">JSON Sample</span>
+            <CodeEditor
+              language="json"
               value={input}
               onChange={setInput}
               placeholder="Enter JSON object..."
-              rows={20}
-              className="font-mono text-xs"
             />
           </div>
 
           {/* Output */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">OpenAPI 3.0 Specification</Label>
-              {output && !error && (
-                <Badge variant="secondary" className="text-xs">
-                  {outputFormat.toUpperCase()}
-                </Badge>
-              )}
-            </div>
-            <CopyTextarea
-              value={output}
-              readOnly
-              placeholder="Generated OpenAPI spec will appear here..."
-              rows={20}
-              className="font-mono text-xs"
-            />
+            <span className="text-sm font-medium">OpenAPI 3.0 Specification ({outputFormat.toUpperCase()})</span>
+            {output ? (
+              <CodeEditor
+                language="json"
+                value={output}
+                readOnly
+                label="Result"
+              />
+            ) : (
+              <div className="rounded-md border bg-background min-h-[200px] flex items-center justify-center">
+                <EmptyState
+                  icon={FileCode}
+                  message="Enter JSON and click Generate to create an OpenAPI spec"
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

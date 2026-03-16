@@ -1,4 +1,3 @@
-"use client";
 
 import { Har, HarEntry } from "../har-types";
 import { DependencyTree } from "./dependency-tree";

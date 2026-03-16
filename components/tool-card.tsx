@@ -1,4 +1,3 @@
-"use client";
 
 import { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,7 +11,7 @@ interface ToolCardProps {
 
 export function ToolCard({ title, description, children, className = "" }: ToolCardProps) {
   return (
-    <Card className={`rounded-2xl border shadow-sm ${className}`}>
+    <Card className={`rounded-lg border shadow-sm ${className}`}>
       {(title || description) && (
         <CardHeader>
           {title && <CardTitle className="text-lg">{title}</CardTitle>}

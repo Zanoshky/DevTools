@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://devtoolbox.co</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://devtoolbox.co/privacy</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://devtoolbox.co/blog</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://devtoolbox.co/tools/base64</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/casing-converter</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/color-hex-converter</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/color-palette-generator</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/color-scheme-designer</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/cron-builder</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/curl-hurl-converter</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/data-visualizer</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/har-analyzer</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/hash</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/json-compare</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+  <url><loc>https://devtoolbox.co/tools/json-editor</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/json-to-code</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/json-to-openapi</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+
+  <url><loc>https://devtoolbox.co/tools/jwt</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/otp-generator</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/password-generator</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/payload-calculator</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/random-data-generator</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/regex-validator</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/timer</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/timestamp-converter</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/timestamp-mongo</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/url-encoder</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/uuid</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/validator-json</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/data-converter</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/key-generator</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://devtoolbox.co/tools/text-sorter</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+</urlset>

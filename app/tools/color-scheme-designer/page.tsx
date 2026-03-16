@@ -1,14 +1,15 @@
-"use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToolLayout } from "@/components/tool-layout";
-import { Copy, Check, Palette, RefreshCw, Download } from "lucide-react";
+import { Copy, Check, Palette, RefreshCw, Download, Trash2 } from "lucide-react";
 import { CopyInput } from "@/components/copy-input";
 import { Badge } from "@/components/ui/badge";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { toast } from "sonner";
 
 type SchemeType = "complementary" | "triadic" | "tetradic" | "analogous" | "split-complementary" | "monochromatic";
@@ -91,22 +92,26 @@ export default function ColorSchemeDesignerPage() {
     setColors(newColors);
   };
 
-  const copyToClipboard = (text: string, index: number) => {
-    if (navigator?.clipboard?.writeText) {
-      navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
       setCopied(index);
       toast.success("Copied to clipboard!");
       setTimeout(() => setCopied(null), 2000);
+    } catch {
+      toast.error("Failed to copy to clipboard");
     }
   };
 
-  const copyAllColors = () => {
-    if (navigator?.clipboard?.writeText) {
+  const copyAllColors = async () => {
+    try {
       const allColors = colors.join('\n');
-      navigator.clipboard.writeText(allColors);
+      await navigator.clipboard.writeText(allColors);
       setCopied(-1);
       toast.success("All colors copied!");
       setTimeout(() => setCopied(null), 2000);
+    } catch {
+      toast.error("Failed to copy to clipboard");
     }
   };
 
@@ -172,22 +177,56 @@ export default function ColorSchemeDesignerPage() {
     return counts[type];
   };
 
+  const isEmpty = baseColor === "#3b82f6" && scheme === "complementary" && colors.length === 0;
+
+  const handleClear = useCallback(() => {
+    setBaseColor("#3b82f6");
+    setScheme("complementary");
+    setColors([]);
+    setCopied(null);
+  }, []);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
+
   return (
     <ToolLayout
       title="Color Scheme Designer"
       description="Generate harmonious color schemes based on color theory principles"
     >
       <div className="space-y-3">
-        {/* Controls */}
-        <div className="flex items-center justify-end gap-3">
-          <Button onClick={generateScheme} size="sm" className="gap-2">
-            <RefreshCw className="h-3 w-3" />
-            Generate Scheme
-          </Button>
-        </div>
+        {/* Action Toolbar */}
+        <ActionToolbar
+          right={
+            <>
+              <Button onClick={generateScheme} size="sm" className="gap-2">
+                <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                Generate Scheme
+              </Button>
+              <Button
+                onClick={handleClear}
+                variant="outline"
+                size="sm"
+                disabled={isEmpty}
+                aria-label="Clear all"
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            </>
+          }
+        />
 
         {/* Side-by-side layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Input Section */}
           <div className="space-y-3">
             {/* Base Color Input */}
@@ -216,6 +255,7 @@ export default function ColorSchemeDesignerPage() {
                   value={baseColor}
                   onChange={(e) => setBaseColor(e.target.value)}
                   className="w-20 h-10 cursor-pointer"
+                  aria-label="Color picker"
                 />
               </div>
             </div>
@@ -252,11 +292,12 @@ export default function ColorSchemeDesignerPage() {
                 <Label className="text-sm font-medium">Color Swatches</Label>
                 <div className="grid grid-cols-3 gap-2">
                   {colors.map((color, i) => (
-                    <div
+                    <button
                       key={i}
-                      className="group relative cursor-pointer"
+                      type="button"
+                      className="group relative cursor-pointer text-left"
                       onClick={() => copyToClipboard(color, i)}
-                      title={`Click to copy ${color}`}
+                      aria-label={`Copy color ${color}`}
                     >
                       <div
                         className="aspect-square rounded-lg border-2 hover:scale-105 transition-all shadow-md hover:shadow-lg"
@@ -271,20 +312,23 @@ export default function ColorSchemeDesignerPage() {
                       <div className="text-[10px] font-mono text-center mt-1 truncate">
                         {color}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
 
                 {/* Combined Preview Bar */}
-                <div className="h-16 rounded-lg overflow-hidden border-2 flex">
+                <div className="h-16 rounded-lg overflow-hidden border-2 flex" role="group" aria-label="Color scheme preview">
                   {colors.map((color, i) => (
-                    <div
+                    <button
                       key={i}
+                      type="button"
                       className="flex-1 cursor-pointer hover:opacity-80 transition-opacity"
                       style={{ backgroundColor: color }}
                       onClick={() => copyToClipboard(color, i)}
-                      title={color}
-                    />
+                      aria-label={`Copy color ${color}`}
+                    >
+                      <span className="sr-only">{color}</span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -336,6 +380,7 @@ export default function ColorSchemeDesignerPage() {
                             size="sm"
                             onClick={() => copyToClipboard(color, i)}
                             className="h-7 w-7 p-0"
+                            aria-label={`Copy ${color}`}
                           >
                             {copied === i ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                           </Button>

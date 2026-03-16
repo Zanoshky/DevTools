@@ -1,6 +1,5 @@
-"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ToolLayout } from "@/components/tool-layout";
 import { Input } from "@/components/ui/input";
@@ -8,25 +7,27 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Copy, Check, Clock, Calendar, Sparkles, Info } from "lucide-react";
+import { Copy, Check, Clock, Calendar, Sparkles, Info, Zap, Timer, Sun, Sunset, Briefcase, Umbrella, CalendarDays, CalendarRange, PartyPopper, Trash2 } from "lucide-react";
 import { CronExpressionParser } from "cron-parser";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 const PRESETS = [
-  { name: "Every minute", cron: "* * * * *", icon: "⚡" },
-  { name: "Every 5 min", cron: "*/5 * * * *", icon: "⏱️" },
-  { name: "Every 15 min", cron: "*/15 * * * *", icon: "⏱️" },
-  { name: "Every hour", cron: "0 * * * *", icon: "🕐" },
-  { name: "Every 2 hours", cron: "0 */2 * * *", icon: "🕑" },
-  { name: "Every 6 hours", cron: "0 */6 * * *", icon: "🕕" },
-  { name: "Daily 9 AM", cron: "0 9 * * *", icon: "🌅" },
-  { name: "Daily noon", cron: "0 12 * * *", icon: "☀️" },
-  { name: "Daily 6 PM", cron: "0 18 * * *", icon: "🌆" },
-  { name: "Weekdays 9 AM", cron: "0 9 * * 1-5", icon: "💼" },
-  { name: "Weekends 10 AM", cron: "0 10 * * 0,6", icon: "🏖️" },
-  { name: "Weekly Mon", cron: "0 9 * * 1", icon: "📅" },
-  { name: "Monthly 1st", cron: "0 0 1 * *", icon: "📆" },
-  { name: "Yearly Jan 1", cron: "0 0 1 1 *", icon: "🎉" },
+  { name: "Every minute", cron: "* * * * *", icon: <Zap className="h-4 w-4" /> },
+  { name: "Every 5 min", cron: "*/5 * * * *", icon: <Timer className="h-4 w-4" /> },
+  { name: "Every 15 min", cron: "*/15 * * * *", icon: <Timer className="h-4 w-4" /> },
+  { name: "Every hour", cron: "0 * * * *", icon: <Clock className="h-4 w-4" /> },
+  { name: "Every 2 hours", cron: "0 */2 * * *", icon: <Clock className="h-4 w-4" /> },
+  { name: "Every 6 hours", cron: "0 */6 * * *", icon: <Clock className="h-4 w-4" /> },
+  { name: "Daily 9 AM", cron: "0 9 * * *", icon: <Sun className="h-4 w-4" /> },
+  { name: "Daily noon", cron: "0 12 * * *", icon: <Sun className="h-4 w-4" /> },
+  { name: "Daily 6 PM", cron: "0 18 * * *", icon: <Sunset className="h-4 w-4" /> },
+  { name: "Weekdays 9 AM", cron: "0 9 * * 1-5", icon: <Briefcase className="h-4 w-4" /> },
+  { name: "Weekends 10 AM", cron: "0 10 * * 0,6", icon: <Umbrella className="h-4 w-4" /> },
+  { name: "Weekly Mon", cron: "0 9 * * 1", icon: <CalendarDays className="h-4 w-4" /> },
+  { name: "Monthly 1st", cron: "0 0 1 * *", icon: <CalendarRange className="h-4 w-4" /> },
+  { name: "Yearly Jan 1", cron: "0 0 1 1 *", icon: <PartyPopper className="h-4 w-4" /> },
 ];
 
 const MINUTE_OPTIONS = [
@@ -201,10 +202,50 @@ export default function CronBuilderPage() {
       await navigator.clipboard.writeText(cronExpression);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
+    } catch {
+      // clipboard write failed
     }
   };
+
+  const DEFAULT_MINUTE = "0";
+  const DEFAULT_HOUR = "9";
+  const DEFAULT_DAY_OF_MONTH = "*";
+  const DEFAULT_MONTH = "*";
+  const DEFAULT_DAY_OF_WEEK = "1-5";
+
+  const isEmpty =
+    minute === DEFAULT_MINUTE &&
+    hour === DEFAULT_HOUR &&
+    dayOfMonth === DEFAULT_DAY_OF_MONTH &&
+    month === DEFAULT_MONTH &&
+    dayOfWeek === DEFAULT_DAY_OF_WEEK &&
+    customCron === "" &&
+    customMinute === "" &&
+    customHour === "" &&
+    customDay === "" &&
+    customMonth === "" &&
+    customDow === "";
+
+  const handleClear = useCallback(() => {
+    setMode("builder");
+    setMinute(DEFAULT_MINUTE);
+    setHour(DEFAULT_HOUR);
+    setDayOfMonth(DEFAULT_DAY_OF_MONTH);
+    setMonth(DEFAULT_MONTH);
+    setDayOfWeek(DEFAULT_DAY_OF_WEEK);
+    setCustomMinute("");
+    setCustomHour("");
+    setCustomDay("");
+    setCustomMonth("");
+    setCustomDow("");
+    setCustomCron("");
+  }, []);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      { key: "x", ctrl: true, shift: true, action: handleClear, description: "Clear all" },
+    ],
+  });
 
   const humanReadable = generateHumanReadable(cronExpression);
   const isValid = nextExecutions.length > 0;
@@ -215,6 +256,20 @@ export default function CronBuilderPage() {
       description="Build and test cron expressions with visual builder, presets, and live preview"
     >
       <div className="space-y-3">
+        <ActionToolbar
+          right={
+            <Button
+              onClick={handleClear}
+              variant="outline"
+              size="sm"
+              disabled={isEmpty}
+              aria-label="Clear all"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          }
+        />
+
         {/* Mode Selector */}
         <div className="p-3 bg-card border rounded-lg">
           <Tabs value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
@@ -246,7 +301,7 @@ export default function CronBuilderPage() {
                 onClick={() => loadPreset(preset.cron)}
                 className="flex flex-col h-auto py-2 px-2"
               >
-                <span className="text-base mb-0.5">{preset.icon}</span>
+                <span className="mb-0.5">{preset.icon}</span>
                 <span className="text-[10px] leading-tight">{preset.name}</span>
               </Button>
             ))}
@@ -254,7 +309,7 @@ export default function CronBuilderPage() {
         </div>
 
         {/* Side-by-side layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Left: Builder/Input */}
           <div className="space-y-3">
             {/* Builder Mode */}
@@ -477,31 +532,26 @@ export default function CronBuilderPage() {
                     <div className="text-[10px] font-semibold text-blue-700 dark:text-blue-300 mb-1">
                       Minute
                     </div>
-                    <div className="font-mono text-xs">{cronExpression.split(" ")[0]}</div>
                   </div>
                   <div className="p-2 bg-green-50 dark:bg-green-950/20 rounded text-center">
                     <div className="text-[10px] font-semibold text-green-700 dark:text-green-300 mb-1">
                       Hour
                     </div>
-                    <div className="font-mono text-xs">{cronExpression.split(" ")[1]}</div>
                   </div>
                   <div className="p-2 bg-yellow-50 dark:bg-yellow-950/20 rounded text-center">
                     <div className="text-[10px] font-semibold text-yellow-700 dark:text-yellow-300 mb-1">
                       Day
                     </div>
-                    <div className="font-mono text-xs">{cronExpression.split(" ")[2]}</div>
                   </div>
                   <div className="p-2 bg-purple-50 dark:bg-purple-950/20 rounded text-center">
                     <div className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 mb-1">
                       Month
                     </div>
-                    <div className="font-mono text-xs">{cronExpression.split(" ")[3]}</div>
                   </div>
                   <div className="p-2 bg-red-50 dark:bg-red-950/20 rounded text-center">
                     <div className="text-[10px] font-semibold text-red-700 dark:text-red-300 mb-1">
                       DOW
                     </div>
-                    <div className="font-mono text-xs">{cronExpression.split(" ")[4]}</div>
                   </div>
                 </div>
               </div>

@@ -1,15 +1,17 @@
-"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ToolLayout } from "@/components/tool-layout";
-import { CopyTextarea } from "@/components/copy-textarea";
+import { CodeEditor } from "@/components/code-editor";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, CheckCircle2, Clock, Calendar, Key } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { EmptyState } from "@/components/empty-state";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { AlertCircle, CheckCircle2, Clock, Calendar, Key, Trash2, KeyRound } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 type Mode = "decode" | "encode";
@@ -191,37 +193,83 @@ export default function JWTPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encodeHeader, encodePayload, signToken, secretKey, algorithm, mode]);
 
+  const isEmpty = mode === "decode"
+    ? jwt === "" && header === "" && payload === ""
+    : encodeHeader === '{\n  "alg": "HS256",\n  "typ": "JWT"\n}' && encodePayload === '{\n  "sub": "1234567890",\n  "name": "John Doe",\n  "iat": 1516239022\n}' && encodedJwt === "";
+
+  const handleClear = useCallback(() => {
+    if (mode === "decode") {
+      setJwt("");
+      setHeader("");
+      setPayload("");
+      setSignature("");
+      setTokenInfo({});
+    } else {
+      setEncodeHeader('{\n  "alg": "HS256",\n  "typ": "JWT"\n}');
+      setEncodePayload('{\n  "sub": "1234567890",\n  "name": "John Doe",\n  "iat": 1516239022\n}');
+      setEncodedJwt("");
+      setSignToken(false);
+      setSecretKey("");
+      setAlgorithm("HS256");
+    }
+    setError("");
+  }, [mode]);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
+
   return (
     <ToolLayout
       title="JWT Encoder/Decoder"
       description="Encode and decode JSON Web Tokens with detailed inspection"
     >
       <div className="space-y-3">
-        {/* Mode Selection */}
-        <div className="p-3 bg-card border rounded-lg">
-          <Label className="text-sm mb-2 block">Mode</Label>
-          <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="decode" className="text-xs">Decode JWT</TabsTrigger>
-              <TabsTrigger value="encode" className="text-xs">Encode JWT</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+        {/* Action Toolbar */}
+        <ActionToolbar
+          left={
+            <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="decode" className="text-xs">Decode JWT</TabsTrigger>
+                <TabsTrigger value="encode" className="text-xs">Encode JWT</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          }
+          right={
+            <Button
+              onClick={handleClear}
+              variant="outline"
+              size="sm"
+              disabled={isEmpty}
+              aria-label="Clear all"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          }
+        />
 
         {mode === "decode" ? (
           <>
             {/* Decode Mode */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* Input */}
               <div className="space-y-3">
                 <div className="p-3 bg-card border rounded-lg space-y-2">
                   <Label className="text-sm font-medium">JWT Token</Label>
-                  <CopyTextarea
+                  <CodeEditor
+                    language="jwt"
                     value={jwt}
                     onChange={setJwt}
                     placeholder="Paste your JWT token here..."
-                    rows={8}
-                    className="font-mono text-xs"
+                    height="120px"
                   />
                 </div>
 
@@ -287,6 +335,15 @@ export default function JWTPage() {
                   </Alert>
                 )}
 
+                {!header && !error && (
+                  <div className="p-3 bg-card border rounded-lg min-h-[200px] flex items-center justify-center">
+                    <EmptyState
+                      icon={KeyRound}
+                      message="Paste a JWT token to decode its header, payload, and signature"
+                    />
+                  </div>
+                )}
+
                 {header && (
                   <>
                     <div className="p-3 bg-card border rounded-lg space-y-2">
@@ -294,11 +351,11 @@ export default function JWTPage() {
                         <Label className="text-sm font-medium">Header</Label>
                         <Badge variant="outline" className="text-xs">Decoded</Badge>
                       </div>
-                      <CopyTextarea
+                      <CodeEditor
+                        language="json"
                         value={header}
                         readOnly
-                        rows={6}
-                        className="font-mono text-xs"
+                        height="100px"
                       />
                     </div>
 
@@ -307,11 +364,11 @@ export default function JWTPage() {
                         <Label className="text-sm font-medium">Payload</Label>
                         <Badge variant="outline" className="text-xs">Decoded</Badge>
                       </div>
-                      <CopyTextarea
+                      <CodeEditor
+                        language="json"
                         value={payload}
                         readOnly
-                        rows={12}
-                        className="font-mono text-xs"
+                        height="150px"
                       />
                     </div>
 
@@ -334,26 +391,26 @@ export default function JWTPage() {
         ) : (
           <>
             {/* Encode Mode */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* Input */}
               <div className="space-y-3">
                 <div className="p-3 bg-card border rounded-lg space-y-2">
                   <Label className="text-sm font-medium">Header (JSON)</Label>
-                  <CopyTextarea
+                  <CodeEditor
+                    language="json"
                     value={encodeHeader}
                     onChange={setEncodeHeader}
-                    rows={6}
-                    className="font-mono text-xs"
+                    height="100px"
                   />
                 </div>
 
                 <div className="p-3 bg-card border rounded-lg space-y-2">
                   <Label className="text-sm font-medium">Payload (JSON)</Label>
-                  <CopyTextarea
+                  <CodeEditor
+                    language="json"
                     value={encodePayload}
                     onChange={setEncodePayload}
-                    rows={8}
-                    className="font-mono text-xs"
+                    height="150px"
                   />
                 </div>
 
@@ -374,29 +431,36 @@ export default function JWTPage() {
                     <>
                       <div className="space-y-2">
                         <Label className="text-sm">Algorithm</Label>
-                        <Select value={algorithm} onValueChange={(v) => setAlgorithm(v as Algorithm)}>
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="HS256">HS256 (SHA-256)</SelectItem>
-                            <SelectItem value="HS384">HS384 (SHA-384)</SelectItem>
-                            <SelectItem value="HS512">HS512 (SHA-512)</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex gap-1.5">
+                          {(["HS256", "HS384", "HS512"] as const).map((alg) => (
+                            <button
+                              key={alg}
+                              onClick={() => setAlgorithm(alg)}
+                              className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                                algorithm === alg ? "bg-primary/10 border-primary text-primary" : "bg-card hover:bg-secondary"
+                              }`}
+                            >
+                              {alg}
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-sm">Secret Key</Label>
+                        <Label htmlFor="jwt-secret" className="text-sm">Secret Key</Label>
                         <Input
+                          id="jwt-secret"
                           type="password"
                           value={secretKey}
                           onChange={(e) => setSecretKey(e.target.value)}
                           placeholder="Enter your secret key..."
                           className="h-8 text-xs font-mono"
+                          autoComplete="off"
+                          data-1p-ignore
+                          data-lpignore="true"
                         />
                         <p className="text-[10px] text-muted-foreground">
-                          Your secret key is used locally and never sent to any server
+                          Your secret key is used locally and never sent to any server. Avoid using production secrets in any browser-based tool.
                         </p>
                       </div>
                     </>
@@ -422,6 +486,15 @@ export default function JWTPage() {
                   </Alert>
                 )}
 
+                {!encodedJwt && !error && (
+                  <div className="p-3 bg-card border rounded-lg min-h-[200px] flex items-center justify-center">
+                    <EmptyState
+                      icon={KeyRound}
+                      message="Edit the header and payload to generate an encoded JWT"
+                    />
+                  </div>
+                )}
+
                 {encodedJwt && (
                   <>
                     <div className="p-3 bg-card border rounded-lg space-y-2">
@@ -431,11 +504,12 @@ export default function JWTPage() {
                           {signToken ? `Signed (${algorithm})` : "Unsigned"}
                         </Badge>
                       </div>
-                      <CopyTextarea
+                      <CodeEditor
+                        language="jwt"
                         value={encodedJwt}
                         readOnly
-                        rows={8}
                         className="font-mono text-xs break-all"
+                        height="120px"
                       />
                       <div className="text-xs text-muted-foreground space-y-1">
                         <div>

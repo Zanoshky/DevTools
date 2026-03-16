@@ -1,12 +1,15 @@
-"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
 import { ToolLayout } from "@/components/tool-layout";
 import { CopyInput } from "@/components/copy-input";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Palette } from "lucide-react";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { EmptyState } from "@/components/empty-state";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { Palette, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export default function ColorHexConverterPage() {
@@ -121,26 +124,58 @@ export default function ColorHexConverterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const isEmpty = hex === "" && rgb.r === 0 && rgb.g === 0 && rgb.b === 0 && hsl.h === 0 && hsl.s === 0 && hsl.l === 0;
+
+  const handleClear = useCallback(() => {
+    setHex("");
+    setRgb({ r: 0, g: 0, b: 0 });
+    setHsl({ h: 0, s: 0, l: 0 });
+    setInputMode("hex");
+  }, []);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
+
   return (
     <ToolLayout
       title="Color Converter"
       description="Convert between HEX, RGB, and HSL color formats with live preview"
     >
       <div className="space-y-3">
-        {/* Input Mode Selector */}
-        <div className="p-3 bg-card border rounded-lg">
-          <Label className="text-sm mb-2 block">Input Mode</Label>
-          <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as typeof inputMode)}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="hex" className="text-xs">HEX</TabsTrigger>
-              <TabsTrigger value="rgb" className="text-xs">RGB</TabsTrigger>
-              <TabsTrigger value="hsl" className="text-xs">HSL</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+        <ActionToolbar
+          left={
+            <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as typeof inputMode)}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="hex" className="text-xs">HEX</TabsTrigger>
+                <TabsTrigger value="rgb" className="text-xs">RGB</TabsTrigger>
+                <TabsTrigger value="hsl" className="text-xs">HSL</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          }
+          right={
+            <Button
+              onClick={handleClear}
+              variant="outline"
+              size="sm"
+              disabled={isEmpty}
+              aria-label="Clear all"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          }
+        />
 
         {/* Side-by-side layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Input Section */}
           <div className="space-y-3">
             {/* Color Input */}
@@ -150,14 +185,15 @@ export default function ColorHexConverterPage() {
               {/* HEX Input */}
               {inputMode === "hex" && (
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">HEX Color</Label>
+                  <Label htmlFor="hex-color" className="text-xs text-muted-foreground">HEX Color</Label>
                   <div className="flex gap-2">
                     <Input
+                      id="hex-color"
                       type="text"
                       value={hex}
                       onChange={(e) => {
                         const value = e.target.value;
-                        if (value.startsWith('#') && value.length <= 7) {
+                        if (value === "" || (value.startsWith('#') && value.length <= 7)) {
                           updateFromHex(value);
                         }
                       }}
@@ -167,9 +203,10 @@ export default function ColorHexConverterPage() {
                     />
                     <Input
                       type="color"
-                      value={hex}
+                      value={hex || "#000000"}
                       onChange={(e) => updateFromHex(e.target.value)}
                       className="w-20 h-10 cursor-pointer"
+                      aria-label="Color picker"
                     />
                   </div>
                 </div>
@@ -181,8 +218,9 @@ export default function ColorHexConverterPage() {
                   <Label className="text-xs text-muted-foreground">RGB Values</Label>
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-xs">R</Label>
+                      <Label htmlFor="rgb-r" className="text-xs">R</Label>
                       <Input
+                        id="rgb-r"
                         type="number"
                         min="0"
                         max="255"
@@ -192,8 +230,9 @@ export default function ColorHexConverterPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">G</Label>
+                      <Label htmlFor="rgb-g" className="text-xs">G</Label>
                       <Input
+                        id="rgb-g"
                         type="number"
                         min="0"
                         max="255"
@@ -203,8 +242,9 @@ export default function ColorHexConverterPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">B</Label>
+                      <Label htmlFor="rgb-b" className="text-xs">B</Label>
                       <Input
+                        id="rgb-b"
                         type="number"
                         min="0"
                         max="255"
@@ -223,8 +263,9 @@ export default function ColorHexConverterPage() {
                   <Label className="text-xs text-muted-foreground">HSL Values</Label>
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-xs">H (0-360)</Label>
+                      <Label htmlFor="hsl-h" className="text-xs">H (0-360)</Label>
                       <Input
+                        id="hsl-h"
                         type="number"
                         min="0"
                         max="360"
@@ -234,8 +275,9 @@ export default function ColorHexConverterPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">S (0-100)</Label>
+                      <Label htmlFor="hsl-s" className="text-xs">S (0-100)</Label>
                       <Input
+                        id="hsl-s"
                         type="number"
                         min="0"
                         max="100"
@@ -245,8 +287,9 @@ export default function ColorHexConverterPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">L (0-100)</Label>
+                      <Label htmlFor="hsl-l" className="text-xs">L (0-100)</Label>
                       <Input
+                        id="hsl-l"
                         type="number"
                         min="0"
                         max="100"
@@ -268,7 +311,7 @@ export default function ColorHexConverterPage() {
               </div>
               <div
                 className="w-full h-48 rounded-lg border-2 shadow-lg transition-colors duration-200"
-                style={{ backgroundColor: hex }}
+                style={{ backgroundColor: hex || "transparent" }}
               />
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
@@ -288,6 +331,14 @@ export default function ColorHexConverterPage() {
             <div className="p-3 bg-card border rounded-lg space-y-3 min-h-[520px]">
               <Label className="text-sm font-medium">All Formats</Label>
               
+              {!hex ? (
+                <div className="flex items-center justify-center min-h-[460px]">
+                  <EmptyState
+                    icon={Palette}
+                    message="Enter a color value to see all format conversions"
+                  />
+                </div>
+              ) : (
               <div className="space-y-3">
                 {/* HEX Formats */}
                 <div className="space-y-2">
@@ -364,6 +415,7 @@ export default function ColorHexConverterPage() {
                   />
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>

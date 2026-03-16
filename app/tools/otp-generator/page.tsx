@@ -1,4 +1,3 @@
-"use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -32,8 +31,12 @@ import {
   QrCode,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { ActionToolbar } from "@/components/action-toolbar";
 import jsQR from "jsqr";
 import QRCodeStyling from "qr-code-styling";
+import { useDeviceAuth } from "@/hooks/use-device-auth";
+import { Fingerprint, Lock } from "lucide-react";
 
 interface TOTPAccount {
   id: string;
@@ -100,6 +103,7 @@ function AccountQRCode({ account }: { account: TOTPAccount }) {
 }
 
 export default function TOTPGeneratorPage() {
+  const { isAuthenticated, isAuthenticating, isSupported, isReady, error: authError, authenticate, lock } = useDeviceAuth();
   const [accounts, setAccounts] = useState<TOTPAccount[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentCodes, setCurrentCodes] = useState<Record<string, string>>({});
@@ -161,27 +165,80 @@ export default function TOTPGeneratorPage() {
     return colors[Math.abs(hash) % colors.length];
   };
 
-  // Load accounts from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem("otp-accounts");
+  // --- Encrypted localStorage helpers ---
+  // Generates or retrieves a per-device AES-GCM key so TOTP secrets are
+  // never stored as plaintext JSON in localStorage.
+  const getStorageKey = async (): Promise<CryptoKey> => {
+    const EK_KEY = "otp-accounts-ek";
+    const stored = localStorage.getItem(EK_KEY);
     if (stored) {
-      try {
-        setAccounts(JSON.parse(stored));
-      } catch (error) {
-        console.error("Failed to load accounts:", error);
-      }
+      const raw = Uint8Array.from(atob(stored), c => c.charCodeAt(0));
+      return crypto.subtle.importKey("raw", raw, "AES-GCM", true, ["encrypt", "decrypt"]);
     }
-  }, []);
+    const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+    const exported = await crypto.subtle.exportKey("raw", key);
+    localStorage.setItem(EK_KEY, btoa(String.fromCharCode(...new Uint8Array(exported))));
+    return key;
+  };
 
-  // Save accounts to localStorage whenever they change
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    
-    if (accounts.length > 0) {
-      localStorage.setItem("otp-accounts", JSON.stringify(accounts));
+  const encryptAccounts = async (data: TOTPAccount[]): Promise<string> => {
+    const key = await getStorageKey();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encoded = new TextEncoder().encode(JSON.stringify(data));
+    const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
+    const combined = new Uint8Array(12 + ciphertext.byteLength);
+    combined.set(iv, 0);
+    combined.set(new Uint8Array(ciphertext), 12);
+    return btoa(String.fromCharCode(...combined));
+  };
+
+  const decryptAccounts = async (b64: string): Promise<TOTPAccount[]> => {
+    const key = await getStorageKey();
+    const combined = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const iv = combined.slice(0, 12);
+    const ciphertext = combined.slice(12);
+    const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+    return JSON.parse(new TextDecoder().decode(decrypted));
+  };
+
+  const saveAccountsToStorage = async (data: TOTPAccount[]) => {
+    if (data.length > 0) {
+      const encrypted = await encryptAccounts(data);
+      localStorage.setItem("otp-accounts", encrypted);
     } else {
       localStorage.removeItem("otp-accounts");
     }
+  };
+
+  // Load accounts from encrypted localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("otp-accounts");
+    if (!stored) return;
+
+    (async () => {
+      try {
+        // Try decrypting (new format)
+        const loaded = await decryptAccounts(stored);
+        setAccounts(loaded);
+      } catch {
+        // Fallback: legacy plaintext JSON - migrate to encrypted
+        try {
+          const legacy = JSON.parse(stored) as TOTPAccount[];
+          setAccounts(legacy);
+          const encrypted = await encryptAccounts(legacy);
+          localStorage.setItem("otp-accounts", encrypted);
+        } catch {
+          // Corrupted data - discard
+        }
+      }
+    })();
+  }, []);
+
+  // Save accounts to encrypted localStorage on change
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    saveAccountsToStorage(accounts);
   }, [accounts]);
 
   // Smooth lerp animation for progress bar
@@ -408,9 +465,178 @@ export default function TOTPGeneratorPage() {
     });
   };
 
+  // Decode protobuf migration payload (Google/Microsoft Authenticator export)
+  const parseMigrationPayload = useCallback((dataParam: string): TOTPAccount[] => {
+    const raw = Uint8Array.from(atob(decodeURIComponent(dataParam)), c => c.charCodeAt(0));
+    const parsed: TOTPAccount[] = [];
+
+    // Minimal protobuf reader for the known migration schema
+    let pos = 0;
+    const readVarint = (): number => {
+      let result = 0;
+      let shift = 0;
+      while (pos < raw.length) {
+        const b = raw[pos++];
+        result |= (b & 0x7f) << shift;
+        if ((b & 0x80) === 0) return result;
+        shift += 7;
+      }
+      return result;
+    };
+    const readBytes = (): Uint8Array => {
+      const len = readVarint();
+      const data = raw.slice(pos, pos + len);
+      pos += len;
+      return data;
+    };
+
+    // Base32 encode for the secret bytes
+    const base32Encode = (bytes: Uint8Array): string => {
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+      let bits = 0;
+      let value = 0;
+      let output = "";
+      for (const byte of bytes) {
+        value = (value << 8) | byte;
+        bits += 8;
+        while (bits >= 5) {
+          output += alphabet[(value >>> (bits - 5)) & 31];
+          bits -= 5;
+        }
+      }
+      if (bits > 0) {
+        output += alphabet[(value << (5 - bits)) & 31];
+      }
+      return output;
+    };
+
+    const algMap: Record<number, "SHA1" | "SHA256" | "SHA512"> = { 0: "SHA1", 1: "SHA1", 2: "SHA256", 3: "SHA512" };
+    const digitMap: Record<number, number> = { 0: 6, 1: 6, 2: 8 };
+    const typeMap: Record<number, "totp" | "hotp"> = { 0: "totp", 1: "hotp", 2: "totp" };
+
+    // Top-level: repeated field 1 (otp_parameters) is length-delimited
+    while (pos < raw.length) {
+      const tag = readVarint();
+      const fieldNum = tag >>> 3;
+      const wireType = tag & 0x7;
+
+      if (fieldNum === 1 && wireType === 2) {
+        // otp_parameters message
+        const msgBytes = readBytes();
+        const msgEnd = msgBytes.length;
+        let mPos = 0;
+
+        let secret = new Uint8Array(0);
+        let name = "";
+        let issuer = "";
+        let algorithm = 1;
+        let digits = 1;
+        let otpType = 2;
+        let counter = 0;
+
+        const mReadVarint = (): number => {
+          let result = 0;
+          let shift = 0;
+          while (mPos < msgEnd) {
+            const b = msgBytes[mPos++];
+            result |= (b & 0x7f) << shift;
+            if ((b & 0x80) === 0) return result;
+            shift += 7;
+          }
+          return result;
+        };
+        const mReadBytes = (): Uint8Array => {
+          const len = mReadVarint();
+          const data = msgBytes.slice(mPos, mPos + len);
+          mPos += len;
+          return data;
+        };
+
+        while (mPos < msgEnd) {
+          const mTag = mReadVarint();
+          const mField = mTag >>> 3;
+          const mWire = mTag & 0x7;
+
+          if (mWire === 2) {
+            const bytes = mReadBytes();
+            if (mField === 1) secret = bytes;
+            else if (mField === 2) name = new TextDecoder().decode(bytes);
+            else if (mField === 3) issuer = new TextDecoder().decode(bytes);
+          } else if (mWire === 0) {
+            const val = mReadVarint();
+            if (mField === 4) algorithm = val;
+            else if (mField === 5) digits = val;
+            else if (mField === 6) otpType = val;
+            else if (mField === 7) counter = val;
+          } else {
+            // Skip unknown wire types
+            if (mWire === 2) mReadBytes();
+            else if (mWire === 0) mReadVarint();
+          }
+        }
+
+        if (secret.length > 0) {
+          let accountName = name;
+          let accountIssuer = issuer || "Unknown";
+          if (!issuer && name.includes(":")) {
+            const parts = name.split(":");
+            accountIssuer = parts[0].trim();
+            accountName = parts.slice(1).join(":").trim();
+          }
+
+          parsed.push({
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: accountName,
+            issuer: accountIssuer,
+            secret: base32Encode(secret),
+            color: getColorForIssuer(accountIssuer),
+            algorithm: algMap[algorithm] || "SHA1",
+            digits: digitMap[digits] || 6,
+            period: 30,
+            type: typeMap[otpType] || "totp",
+            counter: otpType === 1 ? counter : undefined,
+          });
+        }
+      } else {
+        // Skip unknown top-level fields
+        if (wireType === 2) readBytes();
+        else if (wireType === 0) readVarint();
+      }
+    }
+
+    return parsed;
+  }, []);
+
   const parseTOTPUri = useCallback((uri: string) => {
     try {
-      
+      // Handle Google/Microsoft Authenticator migration export
+      if (uri.startsWith("otpauth-migration://")) {
+        const url = new URL(uri);
+        const dataParam = url.searchParams.get("data");
+        if (!dataParam) throw new Error("No data in migration URI");
+
+        const migrated = parseMigrationPayload(dataParam);
+        if (migrated.length === 0) throw new Error("No accounts found in migration data");
+
+        // Deduplicate against existing accounts
+        const newAccounts = migrated.filter(m =>
+          !accounts.some(a => a.name === m.name && a.secret === m.secret)
+        );
+
+        if (newAccounts.length > 0) {
+          setAccounts(prev => [...prev, ...newAccounts]);
+        }
+
+        stopCamera();
+        toast({
+          title: `Imported ${newAccounts.length} account${newAccounts.length !== 1 ? "s" : ""}`,
+          description: newAccounts.length < migrated.length
+            ? `${migrated.length - newAccounts.length} duplicate(s) skipped`
+            : newAccounts.map(a => a.name).join(", "),
+        });
+        return;
+      }
+
       // Parse otpauth://totp/Label?secret=SECRET&issuer=Issuer
       // Also support otpauth://hotp/Label?secret=SECRET&counter=0
       const url = new URL(uri);
@@ -462,7 +688,7 @@ export default function TOTPGeneratorPage() {
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [toast, accounts, parseMigrationPayload]);
 
   const handleQRImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -636,12 +862,8 @@ export default function TOTPGeneratorPage() {
     const updatedAccounts = accounts.filter((acc) => acc.id !== id);
     setAccounts(updatedAccounts);
     
-    // Update localStorage immediately
-    if (updatedAccounts.length > 0) {
-      localStorage.setItem("otp-accounts", JSON.stringify(updatedAccounts));
-    } else {
-      localStorage.removeItem("otp-accounts");
-    }
+    // Update encrypted localStorage immediately
+    saveAccountsToStorage(updatedAccounts);
     
     toast({
       title: "Account removed",
@@ -702,13 +924,33 @@ export default function TOTPGeneratorPage() {
     }
   };
 
-  const copyCode = (code: string, name: string) => {
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: clearAllAccounts,
+        description: "Clear all accounts",
+      },
+    ],
+  });
+
+  const copyCode = async (code: string, name: string) => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(code);
-      toast({
-        title: "Copied!",
-        description: `${name} code copied to clipboard`,
-      });
+      try {
+        await navigator.clipboard.writeText(code);
+        toast({
+          title: "Copied!",
+          description: `${name} code copied to clipboard`,
+        });
+      } catch {
+        toast({
+          title: "Copy failed",
+          description: "Please copy the code manually",
+          variant: "destructive",
+        });
+      }
     } else {
       // Fallback for older browsers or non-secure contexts
       const textArea = document.createElement("textarea");
@@ -990,6 +1232,39 @@ export default function TOTPGeneratorPage() {
       title="OTP Authenticator"
       description="Generate one-time passwords (TOTP, HOTP, Steam) locally with secure backup"
     >
+      {!isAuthenticated && isReady && isSupported ? (
+        <Card className="p-12 max-w-md mx-auto">
+          <div className="text-center space-y-6">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mx-auto">
+              <Fingerprint className="h-8 w-8 text-primary" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold">Authentication Required</h2>
+              <p className="text-sm text-muted-foreground">
+                Verify your identity with your device&apos;s biometrics, PIN, or password to access your OTP accounts.
+              </p>
+            </div>
+            {authError && (
+              <p className="text-sm text-destructive">{authError}</p>
+            )}
+            <Button
+              size="lg"
+              onClick={authenticate}
+              disabled={isAuthenticating}
+              className="gap-2"
+            >
+              {isAuthenticating ? (
+                <>Waiting for verification...</>
+              ) : (
+                <>
+                  <Fingerprint className="h-5 w-5" />
+                  Unlock with Device Auth
+                </>
+              )}
+            </Button>
+          </div>
+        </Card>
+      ) : (
       <div className="space-y-4">
         {/* Top Action Bar with Info Buttons, Timer, and Search */}
         <div className="flex flex-col gap-2">
@@ -1012,6 +1287,12 @@ export default function TOTPGeneratorPage() {
               <Shield className="h-4 w-4" />
               Security & Privacy
             </Button>
+            {isAuthenticated && isSupported && (
+              <Button variant="outline" size="sm" onClick={lock} className="gap-2 sm:ml-auto">
+                <Lock className="h-4 w-4" />
+                Lock
+              </Button>
+            )}
             
           </div>
           
@@ -1029,6 +1310,21 @@ export default function TOTPGeneratorPage() {
             </div>
           </div>
         </div>
+
+        {/* Action Toolbar with Clear All */}
+        <ActionToolbar
+          right={
+            <Button
+              onClick={clearAllAccounts}
+              variant="outline"
+              size="sm"
+              disabled={accounts.length === 0}
+              aria-label="Clear all accounts"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          }
+        />
 
         {/* Warning Alert - Collapsible */}
         {showWarning && (
@@ -1080,9 +1376,9 @@ export default function TOTPGeneratorPage() {
         )}
 
         {/* Desktop: Two Column Layout, Mobile: Single Column */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Left Column: Actions & Forms (1/3 on desktop) */}
-          <div className="lg:col-span-1 flex flex-col gap-4">
+          <div className="md:col-span-1 flex flex-col gap-4">
             {/* Action Buttons */}
             <Card className="p-4">
               <div className="space-y-3">
@@ -1180,7 +1476,10 @@ export default function TOTPGeneratorPage() {
                       placeholder="JBSWY3DPEHPK3PXP"
                       value={newSecret}
                       onChange={(e) => setNewSecret(e.target.value)}
-                      className="font-mono text-xs"
+                      autoComplete="off"
+                      data-1p-ignore
+                      data-lpignore="true"
+                      spellCheck={false}
                     />
                   </div>
 
@@ -1441,7 +1740,7 @@ export default function TOTPGeneratorPage() {
           </div>
 
           {/* Right Column: Accounts Display (2/3 on desktop) */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="md:col-span-2 space-y-4">
             {/* Accounts Grid */}
             {filteredAccounts.length === 0 ? (
               <Card className="p-12">
@@ -1661,6 +1960,7 @@ export default function TOTPGeneratorPage() {
           </div>
         </div>
       </div>
+      )}
     </ToolLayout>
   );
 }

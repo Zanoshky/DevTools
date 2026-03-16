@@ -1,20 +1,21 @@
-"use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ToolLayout } from "@/components/tool-layout";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Upload, BarChart3, LineChart, PieChart, ScatterChart, Activity, ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react";
+import { Upload, BarChart3, LineChart, PieChart, ScatterChart, Activity, ArrowUpDown, ArrowUp, ArrowDown, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 type ChartType = "line" | "bar" | "pie" | "table" | "area" | "scatter";
 
 export default function DataVisualizerPage() {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [chartType, setChartType] = useState<ChartType>("table");
   const [xAxis, setXAxis] = useState<string>("");
@@ -26,6 +27,35 @@ export default function DataVisualizerPage() {
   const [globalSearch, setGlobalSearch] = useState<string>("");
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; label: string; value: number } | null>(null);
+
+  const isEmpty = data.length === 0;
+
+  const handleClear = useCallback(() => {
+    setData([]);
+    setHeaders([]);
+    setChartType("table");
+    setXAxis("");
+    setYAxis("");
+    setGroupData(true);
+    setVisibleRange([0, 100]);
+    setSortColumns([]);
+    setShowAreaFill(false);
+    setGlobalSearch("");
+    setSelectedRows(new Set());
+    setHoveredPoint(null);
+  }, []);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,27 +84,83 @@ export default function DataVisualizerPage() {
   };
 
   const parseCSV = (text: string) => {
-    const lines = text.trim().split('\n');
-    if (lines.length < 2) {
+    // RFC 4180 compliant character-by-character CSV parser
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = "";
+    let inQuotes = false;
+    let i = 0;
+
+    while (i < text.length) {
+      const ch = text[i];
+
+      if (inQuotes) {
+        if (ch === '"') {
+          if (i + 1 < text.length && text[i + 1] === '"') {
+            field += '"';
+            i += 2;
+          } else {
+            inQuotes = false;
+            i++;
+          }
+        } else {
+          field += ch;
+          i++;
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true;
+          i++;
+        } else if (ch === ',') {
+          row.push(field);
+          field = "";
+          i++;
+        } else if (ch === '\r' && i + 1 < text.length && text[i + 1] === '\n') {
+          row.push(field);
+          field = "";
+          rows.push(row);
+          row = [];
+          i += 2;
+        } else if (ch === '\n') {
+          row.push(field);
+          field = "";
+          rows.push(row);
+          row = [];
+          i++;
+        } else {
+          field += ch;
+          i++;
+        }
+      }
+    }
+
+    // Push last field/row
+    if (field || row.length > 0) {
+      row.push(field);
+      rows.push(row);
+    }
+
+    if (rows.length < 2) {
       toast.error("CSV file must have at least a header and one data row");
       return;
     }
 
-    const headers = lines[0].split(',').map(h => h.trim());
-    const rows = lines.slice(1).map(line => {
-      const values = line.split(',').map(v => v.trim());
-      const obj: any = {};
-      headers.forEach((header, idx) => {
-        obj[header] = values[idx] || '';
+    const headers = rows[0];
+    const dataRows = rows.slice(1)
+      .filter(r => r.some(cell => cell !== ""))
+      .map(values => {
+        const obj: Record<string, string> = {};
+        headers.forEach((header, idx) => {
+          obj[header] = values[idx] || '';
+        });
+        return obj;
       });
-      return obj;
-    });
 
     setHeaders(headers);
-    setData(rows);
+    setData(dataRows);
     setXAxis(headers[0] || '');
     setYAxis(headers[1] || '');
-    toast.success(`Loaded ${rows.length} rows`);
+    toast.success(`Loaded ${dataRows.length} rows`);
   };
 
   const parseJSON = (text: string) => {
@@ -130,7 +216,7 @@ export default function DataVisualizerPage() {
     toast.success(`Loaded ${sampleData.length} sample rows`);
   };
 
-  const getNumericValue = (value: any): number => {
+  const getNumericValue = (value: unknown): number => {
     if (typeof value === 'number') return value;
     const str = String(value).replace(/[^0-9.-]/g, '');
     return parseFloat(str) || 0;
@@ -303,6 +389,7 @@ export default function DataVisualizerPage() {
               value={globalSearch}
               onChange={(e) => setGlobalSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 text-sm border rounded-md bg-background"
+              aria-label="Search all columns"
             />
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -374,6 +461,10 @@ export default function DataVisualizerPage() {
                         : 'hover:bg-accent/50'
                     }`}
                     onClick={() => toggleRowSelection(idx)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRowSelection(idx); } }}
+                    tabIndex={0}
+                    role="row"
+                    aria-selected={isSelected}
                   >
                     {headers.map((header, colIdx) => (
                       <td key={colIdx} className="p-2 text-center">
@@ -394,16 +485,16 @@ export default function DataVisualizerPage() {
       let chartData: Array<{ label: string; value: number }>;
 
       if (groupData) {
-        const grouped = data.reduce((acc, d) => {
+        const grouped: Record<string, number> = {};
+        for (const d of data) {
           const category = String(d[xAxis]).trim();
           const value = getNumericValue(d[yAxis]);
           if (!isNaN(value)) {
-            acc[category] = (acc[category] || 0) + value;
+            grouped[category] = (grouped[category] ?? 0) + value;
           }
-          return acc;
-        }, {} as Record<string, number>);
+        }
 
-        chartData = Object.entries(grouped).map(([label, value]) => ({ label, value: value as number }));
+        chartData = Object.entries(grouped).map(([label, value]) => ({ label, value }));
       } else {
         chartData = data.map(d => ({
           label: String(d[xAxis]).trim(),
@@ -639,6 +730,7 @@ export default function DataVisualizerPage() {
                     setVisibleRange([start, start + width]);
                   }}
                   className="flex-1 h-2 bg-secondary rounded-lg appearance-none cursor-pointer"
+                  aria-label="Chart visible range"
                 />
                 <div className="flex gap-1">
                   <Button
@@ -689,17 +781,17 @@ export default function DataVisualizerPage() {
 
     if (groupData) {
       // Group by category and sum values
-      const grouped = data.reduce((acc, d) => {
+      const grouped: Record<string, number> = {};
+      for (const d of data) {
         const category = String(d[xAxis]).trim();
         const value = getNumericValue(d[yAxis]);
         if (!isNaN(value)) {
-          acc[category] = (acc[category] || 0) + value;
+          grouped[category] = (grouped[category] ?? 0) + value;
         }
-        return acc;
-      }, {} as Record<string, number>);
+      }
 
       // Convert to array and sort by absolute value descending
-      entries = (Object.entries(grouped) as [string, number][])
+      entries = Object.entries(grouped)
         .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a));
       
       maxValue = Math.max(...entries.map(([, val]) => Math.abs(val)));
@@ -783,21 +875,23 @@ export default function DataVisualizerPage() {
     }
 
     // Group by category and sum absolute values (treat negatives as positive)
-    const grouped = data.reduce((acc, d) => {
+    const grouped: Record<string, { value: number; isNegative: boolean }> = {};
+    for (const d of data) {
       const category = String(d[xAxis]).trim();
       const value = getNumericValue(d[yAxis]);
       if (!isNaN(value) && value !== 0) {
         const absValue = Math.abs(value);
-        if (!acc[category]) {
-          acc[category] = { value: 0, isNegative: value < 0 };
+        const existing = grouped[category];
+        if (!existing) {
+          grouped[category] = { value: absValue, isNegative: value < 0 };
+        } else {
+          existing.value += absValue;
         }
-        acc[category].value += absValue;
       }
-      return acc;
-    }, {} as Record<string, { value: number; isNegative: boolean }>);
+    }
 
     // Sort by value descending - show all categories
-    const entries = (Object.entries(grouped) as [string, { value: number; isNegative: boolean }][])
+    const entries = Object.entries(grouped)
       .sort(([, a], [, b]) => b.value - a.value);
     const total = entries.reduce((sum, [, { value }]) => sum + value, 0);
 
@@ -1104,9 +1198,23 @@ export default function DataVisualizerPage() {
     <ToolLayout
       title="Data Visualizer"
       description="Upload CSV or JSON files and visualize your data with charts"
-      maxWidth="7xl"
     >
       <div className="space-y-4">
+        {/* Action Toolbar */}
+        <ActionToolbar
+          right={
+            <Button
+              onClick={handleClear}
+              variant="outline"
+              size="sm"
+              disabled={isEmpty}
+              aria-label="Clear all"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          }
+        />
+
         {/* Upload Section with Stats */}
         <div className="flex flex-col lg:flex-row gap-4">
           <Card className="p-4 flex-1">

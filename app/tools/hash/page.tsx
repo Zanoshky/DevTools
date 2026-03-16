@@ -1,11 +1,15 @@
-"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToolLayout } from "@/components/tool-layout";
-import { CopyTextarea } from "@/components/copy-textarea";
+import { CodeEditor } from "@/components/code-editor";
 import { CopyInput } from "@/components/copy-input";
+import { Badge } from "@/components/ui/badge";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { Hash, Trash2 } from "lucide-react";
 
 // MD5 implementation
 function md5(str: string): string {
@@ -356,6 +360,19 @@ export default function HashPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, algorithm, isMounted]);
 
+  const handleClear = useCallback(() => {
+    setInput("");
+    setOutput("");
+  }, []);
+
+  const isEmpty = input.length === 0;
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      { key: "x", ctrl: true, shift: true, action: handleClear, description: "Clear all" },
+    ],
+  });
+
   const getHashInfo = () => {
     const info: Record<string, string> = {
       "MD5": "128-bit • Legacy (not secure)",
@@ -380,36 +397,47 @@ export default function HashPage() {
       description="Generate cryptographic hashes and checksums with multiple algorithms"
     >
       <div className="space-y-3">
-        {/* Algorithm Selection */}
-        <div className="flex items-center justify-end gap-3">
-          <div className="p-3 bg-card border rounded-lg flex items-center gap-3 flex-1">
-            <Label className="text-sm font-medium whitespace-nowrap">Algorithm:</Label>
-            <Select value={algorithm} onValueChange={setAlgorithm}>
-              <SelectTrigger className="h-8 text-xs flex-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {algorithms.map((algo) => (
-                  <SelectItem key={algo} value={algo}>
-                    {algo}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        <ActionToolbar
+          left={
+            <div className="flex items-center gap-3">
+              <Label className="text-sm font-medium whitespace-nowrap">Algorithm:</Label>
+              <Select value={algorithm} onValueChange={setAlgorithm}>
+                <SelectTrigger className="h-8 text-xs w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {algorithms.map((algo) => (
+                    <SelectItem key={algo} value={algo}>
+                      {algo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          }
+          right={
+            <Button
+              onClick={handleClear}
+              variant="outline"
+              size="sm"
+              disabled={isEmpty}
+              aria-label="Clear input"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          }
+        />
 
         {/* Side-by-side layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Input */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Input Text</Label>
-            <CopyTextarea
+            <CodeEditor language="text"
               value={input}
               onChange={setInput}
               placeholder="Enter text to hash..."
-              rows={20}
-              className="font-mono text-xs"
+
             />
             {input && (
               <div className="text-xs text-muted-foreground">
@@ -428,47 +456,54 @@ export default function HashPage() {
                 </div>
               )}
             </div>
-            <div className="p-3 bg-card border rounded-lg min-h-[520px] space-y-3">
+            <div className="border rounded-lg min-h-[520px] overflow-hidden">
               {output ? (
-                <>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-muted-foreground">Algorithm:</Label>
-                      <span className="text-xs font-mono">{algorithm}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label className="text-xs text-muted-foreground">Info:</Label>
-                      <span className="text-xs">{getHashInfo()}</span>
+                <div className="space-y-3 p-3">
+                  {/* Algorithm badge bar */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="default" className="text-xs">{algorithm}</Badge>
+                    <Badge variant="outline" className="text-xs">{getHashInfo()}</Badge>
+                  </div>
+
+                  {/* Main hash display */}
+                  <div className="relative overflow-hidden rounded-lg">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5" />
+                    <div className="relative p-4 bg-card/80">
+                      <Label className="text-xs text-muted-foreground mb-2 block">Hash (lowercase)</Label>
+                      <CopyInput
+                        value={output}
+                        readOnly
+                      />
                     </div>
                   </div>
+
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Hash:</Label>
-                    <CopyInput
-                      value={output}
-                      readOnly
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Uppercase:</Label>
+                    <Label className="text-xs text-muted-foreground">Uppercase</Label>
                     <CopyInput
                       value={output.toUpperCase()}
                       readOnly
-                      className="font-mono text-xs"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">With Prefix:</Label>
+                    <Label className="text-xs text-muted-foreground">With 0x Prefix</Label>
                     <CopyInput
                       value={`0x${output}`}
                       readOnly
-                      className="font-mono text-xs"
                     />
                   </div>
-                </>
+
+                  {/* Visual hash length indicator */}
+                  <div className="pt-2 border-t">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Hash length: {output.length} hex chars</span>
+                      <span>{output.length * 4} bits</span>
+                    </div>
+                  </div>
+                </div>
               ) : (
-                <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-                  {input ? "Generating hash..." : "Enter text to generate hash"}
+                <div className="flex flex-col items-center justify-center h-full min-h-[520px] text-muted-foreground p-6">
+                  <Hash className="h-8 w-8 mb-3 opacity-50" />
+                  <p className="text-sm">{input ? "Generating hash..." : "Enter text to generate hash"}</p>
                 </div>
               )}
             </div>

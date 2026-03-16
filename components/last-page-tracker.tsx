@@ -1,14 +1,12 @@
-"use client";
-
 import { useEffect, useState, useRef } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const LAST_PAGE_KEY = "dev-toolbox-last-page";
 const HOME_PAGE = "/";
 
 export function LastPageTracker() {
-  const pathname = usePathname();
-  const router = useRouter();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [hasCheckedRestore, setHasCheckedRestore] = useState(false);
   const isUserNavigationRef = useRef(false);
@@ -44,7 +42,7 @@ export function LastPageTracker() {
         
         // Small delay to ensure smooth transition
         setTimeout(() => {
-          router.replace(lastPage);
+          navigate(lastPage, { replace: true });
           setTimeout(() => setIsRedirecting(false), 500);
         }, 100);
       } else {
@@ -53,7 +51,7 @@ export function LastPageTracker() {
     } else {
       setHasCheckedRestore(true);
     }
-  }, [pathname, router, hasCheckedRestore]);
+  }, [pathname, navigate, hasCheckedRestore]);
 
   // Show loading indicator while redirecting
   if (isRedirecting) {

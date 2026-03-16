@@ -1,19 +1,14 @@
-"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ToolLayout } from "@/components/tool-layout";
-import { CopyInput } from "@/components/copy-input";
 import { HistorySidebar } from "@/components/history-sidebar";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { toast } from "@/hooks/use-toast";
+import { Copy, RefreshCw, Clock, Dice5, BarChart3, Trash2 } from "lucide-react";
+
 type HistoryItem = {
   uuid: string;
   version: string;
@@ -24,6 +19,7 @@ export default function UUIDPage() {
   const [version, setVersion] = useState("4");
   const [generatedUUID, setGeneratedUUID] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -31,8 +27,8 @@ export default function UUIDPage() {
       if (saved) {
         try {
           setHistory(JSON.parse(saved));
-        } catch (e) {
-          console.error("Failed to load history:", e);
+        } catch {
+          // Ignore corrupted history data
         }
       }
     }
@@ -55,26 +51,34 @@ export default function UUIDPage() {
     const timeLow = (timestamp & 0xffffffffn).toString(16).padStart(8, "0");
     const timeMid = ((timestamp >> 32n) & 0xffffn).toString(16).padStart(4, "0");
     const timeHi = (((timestamp >> 48n) & 0xfffn) | 0x1000n).toString(16).padStart(4, "0");
-    const clockSeq = ((Math.random() * 0x3fff) | 0x8000).toString(16).padStart(4, "0");
-    const node = Array.from({ length: 12 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+    const randomBytes = crypto.getRandomValues(new Uint8Array(8));
+    const clockSeq = (((randomBytes[0] << 8 | randomBytes[1]) & 0x3fff) | 0x8000).toString(16).padStart(4, "0");
+    const node = Array.from(randomBytes.slice(2), (b) => b.toString(16).padStart(2, "0")).join("");
     return `${timeLow}-${timeMid}-${timeHi}-${clockSeq}-${node}`;
   }
 
   function generateUUIDv4() {
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === "x" ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
   function generateUUIDv7() {
-    const timestamp = Date.now();
-    const timestampHex = timestamp.toString(16).padStart(12, "0");
-    const random = crypto.getRandomValues(new Uint8Array(10));
-    const randomHex = Array.from(random).map((b) => b.toString(16).padStart(2, "0")).join("");
-    const group4a = ((parseInt(randomHex.substring(3, 5), 16) & 0x3f) | 0x80).toString(16).padStart(2, "0");
-    return `${timestampHex.substring(0, 8)}-${timestampHex.substring(8, 12)}-7${randomHex.substring(0, 3)}-${group4a}${randomHex.substring(5, 7)}-${randomHex.substring(7, 19)}`;
+    // RFC 9562 UUIDv7: 48-bit timestamp | 4-bit ver | 12-bit rand_a | 2-bit var | 62-bit rand_b
+    const value = crypto.getRandomValues(new Uint8Array(16));
+    const timestamp = BigInt(Date.now());
+    value[0] = Number((timestamp >> 40n) & 0xffn);
+    value[1] = Number((timestamp >> 32n) & 0xffn);
+    value[2] = Number((timestamp >> 24n) & 0xffn);
+    value[3] = Number((timestamp >> 16n) & 0xffn);
+    value[4] = Number((timestamp >> 8n) & 0xffn);
+    value[5] = Number(timestamp & 0xffn);
+    value[6] = (value[6] & 0x0f) | 0x70; // version 7
+    value[8] = (value[8] & 0x3f) | 0x80; // variant 10
+    const hex = Array.from(value, (b) => b.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
   function generateUUID() {
@@ -96,6 +100,59 @@ export default function UUIDPage() {
       localStorage.removeItem("uuid-history");
     }
   };
+
+  const handleClear = useCallback(() => {
+    setGeneratedUUID("");
+  }, []);
+
+  const copyToClipboard = useCallback(async () => {
+    if (!generatedUUID) return;
+    try {
+      await navigator.clipboard.writeText(generatedUUID);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ description: "Failed to copy", variant: "destructive" });
+    }
+  }, [generatedUUID]);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "c",
+        ctrl: true,
+        shift: true,
+        action: () => { void copyToClipboard(); },
+        description: "Copy output",
+      },
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
+
+  const renderUUIDStyled = (uuid: string) => {
+    if (!uuid) return null;
+    return (
+      <span className="text-primary font-bold">{uuid}</span>
+    );
+  };
+
+  const getVersionInfo = () => {
+    switch (version) {
+      case "1": return { label: "Time-based", desc: "Generated from timestamp and MAC address", icon: <Clock className="h-5 w-5 text-primary" /> };
+      case "4": return { label: "Random", desc: "Maximum privacy and uniqueness", icon: <Dice5 className="h-5 w-5 text-primary" /> };
+      case "7": return { label: "Time-ordered", desc: "Sortable with random component", icon: <BarChart3 className="h-5 w-5 text-primary" /> };
+      default: return { label: "Random", desc: "", icon: <Dice5 className="h-5 w-5 text-primary" /> };
+    }
+  };
+
+  const versionInfo = getVersionInfo();
+  const isEmpty = generatedUUID.length === 0;
 
   return (
     <ToolLayout
@@ -125,97 +182,126 @@ export default function UUIDPage() {
         />
       }
     >
-      <div className="space-y-3">
-        {/* Configuration Toolbar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-card border rounded-lg">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <Label htmlFor="version" className="text-sm whitespace-nowrap">UUID Version:</Label>
-            <Select value={version} onValueChange={setVersion}>
-              <SelectTrigger id="version" className="h-8 text-xs w-full sm:w-[200px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1" className="text-xs">v1 - Timestamp-based</SelectItem>
-                <SelectItem value="4" className="text-xs">v4 - Random (most common)</SelectItem>
-                <SelectItem value="7" className="text-xs">v7 - Time-ordered</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="space-y-4">
+        {/* Version Selection as clickable cards */}
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            onClick={() => { setVersion("1"); }}
+            aria-label="Select UUID version 1"
+            className={`p-3 border rounded-lg transition-colors text-left ${version === "1" ? "bg-primary/10 border-primary" : "bg-card hover:bg-secondary"}`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Clock className="h-4 w-4 text-primary" />
+              <Badge variant={version === "1" ? "default" : "outline"} className="text-xs">v1</Badge>
+            </div>
+            <div className="text-sm font-medium">Timestamp-based</div>
+            <p className="text-xs text-muted-foreground mt-0.5">Sortable by creation time</p>
+          </button>
 
-          <Button onClick={generateUUID} size="sm">
-            Generate UUID
-          </Button>
+          <button
+            onClick={() => { setVersion("4"); }}
+            aria-label="Select UUID version 4"
+            className={`p-3 border rounded-lg transition-colors text-left ${version === "4" ? "bg-primary/10 border-primary" : "bg-card hover:bg-secondary"}`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Dice5 className="h-4 w-4 text-primary" />
+              <Badge variant={version === "4" ? "default" : "outline"} className="text-xs">v4</Badge>
+            </div>
+            <div className="text-sm font-medium">Random</div>
+            <p className="text-xs text-muted-foreground mt-0.5">Most common, max privacy</p>
+          </button>
+
+          <button
+            onClick={() => { setVersion("7"); }}
+            aria-label="Select UUID version 7"
+            className={`p-3 border rounded-lg transition-colors text-left ${version === "7" ? "bg-primary/10 border-primary" : "bg-card hover:bg-secondary"}`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              <Badge variant={version === "7" ? "default" : "outline"} className="text-xs">v7</Badge>
+            </div>
+            <div className="text-sm font-medium">Time-ordered</div>
+            <p className="text-xs text-muted-foreground mt-0.5">Best for databases</p>
+          </button>
         </div>
 
-        {/* Generated UUID Display */}
+        {/* Action Toolbar with Regenerate and Clear */}
+        <ActionToolbar
+          right={
+            <>
+              <Button onClick={generateUUID} size="sm" className="gap-2" aria-label={`Generate UUID version ${version}`}>
+                <RefreshCw className="h-3.5 w-3.5" />
+                Generate UUID v{version}
+              </Button>
+              <Button
+                onClick={handleClear}
+                variant="outline"
+                size="sm"
+                disabled={isEmpty}
+                aria-label="Clear generated UUID"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          }
+        />
+
+        {/* Main UUID Display - Hero Style */}
         {generatedUUID && (
-          <div className="p-4 bg-card border rounded-lg">
-            <Label className="text-sm font-medium mb-2 block">Generated UUID</Label>
-            <CopyInput
-              id="generated"
-              value={generatedUUID}
-              readOnly
-              className="font-mono text-sm"
-            />
+          <div className="relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg" />
             
-            {/* UUID Info */}
-            <div className="mt-3 pt-3 border-t">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <div className="text-muted-foreground mb-1">Version</div>
-                  <Badge variant="secondary" className="text-xs">v{version}</Badge>
-                </div>
-                <div>
-                  <div className="text-muted-foreground mb-1">Format</div>
-                  <div className="font-medium">8-4-4-4-12</div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground mb-1">Length</div>
-                  <div className="font-medium">{generatedUUID.length} chars</div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground mb-1">Type</div>
-                  <div className="font-medium">
-                    {version === "1" ? "Time-based" : version === "7" ? "Time-ordered" : "Random"}
+            <div className="relative p-6 bg-card/80 backdrop-blur-sm border rounded-lg space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span>{versionInfo.icon}</span>
+                  <div>
+                    <h3 className="text-lg font-semibold">Generated UUID</h3>
+                    <p className="text-xs text-muted-foreground">{versionInfo.desc}</p>
                   </div>
                 </div>
+                <Badge 
+                  variant="outline" 
+                  className="text-xs font-semibold text-primary border-primary/30"
+                >
+                  v{version} · {versionInfo.label}
+                </Badge>
+              </div>
+
+              {/* UUID Display with Colors */}
+              <div className="relative">
+                <div className="p-4 bg-gray-100 dark:bg-black/40 backdrop-blur-sm rounded-lg border border-gray-300 dark:border-white/10">
+                  <div className="text-2xl font-mono tracking-wide break-all text-center">
+                    {renderUUIDStyled(generatedUUID)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Copy Button */}
+              <div className="flex justify-center">
+                <Button
+                  onClick={() => { void copyToClipboard(); }}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  aria-label="Copy UUID to clipboard"
+                >
+                  <Copy className="h-4 w-4" />
+                  {copied ? "Copied!" : "Copy UUID"}
+                </Button>
+              </div>
+
+              {/* Stats Row */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground pt-3 border-t">
+                <span>Format: 8-4-4-4-12</span>
+                <span>Length: {generatedUUID.length} chars</span>
+                <span>Type: {versionInfo.label}</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* UUID Version Info */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="p-3 bg-card border rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <Badge variant="outline" className="text-xs">v1</Badge>
-              <span className="text-sm font-medium">Timestamp-based</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Generated from timestamp and MAC address. Sortable by creation time but may expose system info.
-            </p>
-          </div>
-
-          <div className="p-3 bg-card border rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <Badge variant="outline" className="text-xs">v4</Badge>
-              <span className="text-sm font-medium">Random</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Most common. Generated using random numbers. No sortability but maximum privacy and uniqueness.
-            </p>
-          </div>
-
-          <div className="p-3 bg-card border rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <Badge variant="outline" className="text-xs">v7</Badge>
-              <span className="text-sm font-medium">Time-ordered</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Modern approach. Sortable by creation time with random component. Best for databases and distributed systems.
-            </p>
-          </div>
-        </div>
       </div>
     </ToolLayout>
   );

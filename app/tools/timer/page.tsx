@@ -1,15 +1,16 @@
-"use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToolLayout } from "@/components/tool-layout";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Play, Pause, RotateCcw, Clock, Bell, BellOff, Volume2, VolumeX, Flag } from "lucide-react";
+import { Play, Pause, RotateCcw, Clock, Bell, BellOff, Volume2, VolumeX, Flag, Trash2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 interface Lap {
   id: number;
@@ -43,6 +44,54 @@ export default function TimerPage() {
   const titleIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const titleUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  const isEmpty = !isRunning && timeLeft === 0 && !stopwatchRunning && stopwatchTime === 0 && laps.length === 0;
+
+  const handleClear = useCallback(() => {
+    // Stop timer
+    setIsRunning(false);
+    setTimeLeft(0);
+    setTotalTime(0);
+    setMinutes(5);
+    setSeconds(0);
+
+    // Stop stopwatch
+    setStopwatchRunning(false);
+    setStopwatchTime(0);
+    setLaps([]);
+    setLapCounter(0);
+
+    // Stop alarm
+    setIsAlarming(false);
+
+    if (titleIntervalRef.current) {
+      clearInterval(titleIntervalRef.current);
+      titleIntervalRef.current = null;
+    }
+    if (titleUpdateIntervalRef.current) {
+      clearInterval(titleUpdateIntervalRef.current);
+      titleUpdateIntervalRef.current = null;
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    if (typeof window !== "undefined") {
+      document.title = originalTitleRef.current;
+    }
+  }, []);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
+
   // Initialize audio
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -74,48 +123,46 @@ export default function TimerPage() {
     };
   }, []);
 
-  // Update title with timer countdown
+  // Update title - prioritize the currently viewed tab, fall back to whichever is running
   useEffect(() => {
-    if (mode === "timer" && isRunning && timeLeft > 0 && !isAlarming) {
+    if (isAlarming) return;
+
+    const timerActive = isRunning && timeLeft > 0;
+    const showTimer = (mode === "timer" && timerActive) || (!stopwatchRunning && timerActive);
+    const showStopwatch = (mode === "stopwatch" && stopwatchRunning) || (!timerActive && stopwatchRunning);
+
+    if (showTimer) {
       const updateTitle = () => {
         const mins = Math.floor(timeLeft / 60);
         const secs = timeLeft % 60;
-        document.title = `⏱️ ${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")} - Timer`;
+        document.title = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")} - Timer`;
       };
-      
       updateTitle();
       titleUpdateIntervalRef.current = setInterval(updateTitle, 3000);
-      
       return () => {
-        if (titleUpdateIntervalRef.current) {
-          clearInterval(titleUpdateIntervalRef.current);
-        }
+        if (titleUpdateIntervalRef.current) clearInterval(titleUpdateIntervalRef.current);
         document.title = originalTitleRef.current;
       };
-    } else if (mode === "stopwatch" && stopwatchRunning) {
+    } else if (showStopwatch) {
       const updateTitle = () => {
         const mins = Math.floor(stopwatchTime / 60000);
         const secs = Math.floor((stopwatchTime % 60000) / 1000);
-        document.title = `⏱️ ${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")} - Stopwatch`;
+        document.title = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")} - Stopwatch`;
       };
-      
       updateTitle();
       titleUpdateIntervalRef.current = setInterval(updateTitle, 3000);
-      
       return () => {
-        if (titleUpdateIntervalRef.current) {
-          clearInterval(titleUpdateIntervalRef.current);
-        }
+        if (titleUpdateIntervalRef.current) clearInterval(titleUpdateIntervalRef.current);
         document.title = originalTitleRef.current;
       };
-    } else if (!isAlarming) {
+    } else {
       document.title = originalTitleRef.current;
     }
   }, [mode, isRunning, timeLeft, stopwatchRunning, stopwatchTime, isAlarming]);
 
-  // Timer countdown
+  // Timer countdown - runs regardless of active tab
   useEffect(() => {
-    if (!isRunning || timeLeft <= 0 || mode !== "timer") return;
+    if (!isRunning || timeLeft <= 0) return;
 
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
@@ -130,18 +177,18 @@ export default function TimerPage() {
 
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRunning, timeLeft, mode]);
+  }, [isRunning, timeLeft]);
 
-  // Stopwatch
+  // Stopwatch - runs regardless of active tab
   useEffect(() => {
-    if (!stopwatchRunning || mode !== "stopwatch") return;
+    if (!stopwatchRunning) return;
 
     const interval = setInterval(() => {
       setStopwatchTime((prev) => prev + 10);
     }, 10);
 
     return () => clearInterval(interval);
-  }, [stopwatchRunning, mode]);
+  }, [stopwatchRunning]);
 
   const triggerAlarm = () => {
     if (!alarmEnabled) return;
@@ -152,7 +199,7 @@ export default function TimerPage() {
     if (typeof window !== "undefined" && "Notification" in window) {
       try {
         if (Notification.permission === "granted") {
-          new Notification("⏰ Timer Complete!", {
+          new Notification("Timer Complete!", {
             body: "Your timer has finished!",
             icon: "/favicon.ico",
             tag: "timer-alarm",
@@ -171,7 +218,7 @@ export default function TimerPage() {
     let showAlert = true;
     titleIntervalRef.current = setInterval(() => {
       if (typeof window !== "undefined") {
-        document.title = showAlert ? "⏰ TIME'S UP! ⏰" : originalTitleRef.current;
+        document.title = showAlert ? "TIME'S UP!" : originalTitleRef.current;
         showAlert = !showAlert;
       }
     }, 1000);
@@ -298,31 +345,58 @@ export default function TimerPage() {
       description="Countdown timer with presets and stopwatch with lap times"
     >
       <div className="space-y-3">
+        {/* Action Toolbar */}
+        <ActionToolbar
+          right={
+            <Button
+              onClick={handleClear}
+              variant="outline"
+              size="sm"
+              disabled={isEmpty}
+              aria-label="Clear all"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          }
+        />
+
         {/* Mode Selector */}
         <div className="p-3 bg-card border rounded-lg">
           <Tabs value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="timer" className="text-xs">
-                <Clock className="h-3 w-3 mr-2" />
+              <TabsTrigger value="timer" className="text-xs gap-2">
+                <Clock className="h-3 w-3" />
                 Timer
+                {isRunning && mode !== "timer" && (
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                  </span>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="stopwatch" className="text-xs">
-                <Clock className="h-3 w-3 mr-2" />
+              <TabsTrigger value="stopwatch" className="text-xs gap-2">
+                <Clock className="h-3 w-3" />
                 Stopwatch
+                {stopwatchRunning && mode !== "stopwatch" && (
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                  </span>
+                )}
               </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
 
-        {/* Timer Mode */}
-        {mode === "timer" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Timer Mode - hidden instead of unmounted */}
+        <div className={mode !== "timer" ? "hidden" : ""}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* Left: Timer Display */}
             <div className="space-y-3">
               {isAlarming && (
                 <div className="p-3 bg-destructive/10 border border-destructive rounded-lg">
                   <div className="text-center space-y-3">
-                    <div className="text-4xl animate-bounce">⏰</div>
+                    <Bell className="h-10 w-10 animate-bounce text-destructive" />
                     <div className="text-xl font-bold">TIME&apos;S UP!</div>
                     <Button onClick={stopAlarm} size="sm" variant="destructive" className="w-full">
                       <BellOff className="h-3 w-3 mr-2" />
@@ -338,8 +412,9 @@ export default function TimerPage() {
                     <Label className="text-sm font-medium">Set Timer Duration</Label>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Minutes</Label>
+                        <Label htmlFor="timer-minutes" className="text-xs text-muted-foreground">Minutes</Label>
                         <Input
+                          id="timer-minutes"
                           type="number"
                           value={minutes}
                           onChange={(e) => setMinutes(Math.max(0, parseInt(e.target.value) || 0))}
@@ -349,8 +424,9 @@ export default function TimerPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Seconds</Label>
+                        <Label htmlFor="timer-seconds" className="text-xs text-muted-foreground">Seconds</Label>
                         <Input
+                          id="timer-seconds"
                           type="number"
                           value={seconds}
                           onChange={(e) => setSeconds(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
@@ -363,12 +439,15 @@ export default function TimerPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="text-center py-6">
-                      <div className="text-7xl font-bold font-mono tabular-nums">
-                        {displayMinutes.toString().padStart(2, "0")}:{displaySeconds.toString().padStart(2, "0")}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-3">
-                        {Math.floor(timeLeft / 60)}m {timeLeft % 60}s remaining
+                    <div className="relative overflow-hidden rounded-lg">
+                      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5" />
+                      <div className="relative text-center py-8 md:py-12 lg:py-16">
+                        <div className="text-6xl md:text-8xl lg:text-[12rem] leading-none font-bold font-mono tabular-nums">
+                          {displayMinutes.toString().padStart(2, "0")}:{displaySeconds.toString().padStart(2, "0")}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-3">
+                          {Math.floor(timeLeft / 60)}m {timeLeft % 60}s remaining
+                        </div>
                       </div>
                     </div>
                     <Progress value={progress} className="h-2" />
@@ -451,27 +530,30 @@ export default function TimerPage() {
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Stopwatch Mode */}
-        {mode === "stopwatch" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Stopwatch Mode - hidden instead of unmounted */}
+        <div className={mode !== "stopwatch" ? "hidden" : ""}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* Left: Stopwatch Display */}
             <div className="p-3 bg-card border rounded-lg space-y-4">
-              <div className="text-center py-6">
-                <div className="text-7xl font-bold font-mono tabular-nums">
-                  {stopwatchMinutes.toString().padStart(2, "0")}:{stopwatchSeconds.toString().padStart(2, "0")}
-                </div>
-                <div className="text-3xl font-mono text-muted-foreground mt-2">
-                  .{stopwatchMillis.toString().padStart(2, "0")}
-                </div>
-                {laps.length > 0 && (
-                  <div className="mt-4">
-                    <Badge variant="secondary" className="text-xs">
-                      {laps.length} {laps.length === 1 ? 'Lap' : 'Laps'}
-                    </Badge>
+              <div className="relative overflow-hidden rounded-lg">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5" />
+                <div className="relative text-center py-8 md:py-12 lg:py-16">
+                  <div className="text-6xl md:text-8xl lg:text-[12rem] leading-none font-bold font-mono tabular-nums">
+                    {stopwatchMinutes.toString().padStart(2, "0")}:{stopwatchSeconds.toString().padStart(2, "0")}
                   </div>
-                )}
+                  <div className="text-3xl md:text-4xl lg:text-5xl font-mono text-muted-foreground mt-2 md:mt-4">
+                    .{stopwatchMillis.toString().padStart(2, "0")}
+                  </div>
+                  {laps.length > 0 && (
+                    <div className="mt-4">
+                      <Badge variant="secondary" className="text-xs">
+                        {laps.length} {laps.length === 1 ? 'Lap' : 'Laps'}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-2">
@@ -531,7 +613,7 @@ export default function TimerPage() {
               )}
             </div>
           </div>
-        )}
+        </div>
       </div>
     </ToolLayout>
   );

@@ -1,16 +1,17 @@
-"use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { ToolLayout } from "@/components/tool-layout";
-import { CopyTextarea } from "@/components/copy-textarea";
+import { CodeEditor } from "@/components/code-editor";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Copy, Check, Loader2 } from "lucide-react";
+import { Download, Copy, Check, Loader2, ChevronRight, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { ActionToolbar } from "@/components/action-toolbar";
 
 type DataType = 
   // Personal
@@ -242,7 +243,8 @@ const DATA_CATEGORIES: DataCategory[] = [
 ];
 
 export default function RandomDataGeneratorPage() {
-  const [selectedTypes, setSelectedTypes] = useState<DataType[]>(["email"]);
+  const [selectedTypes, setSelectedTypes] = useState<DataType[]>(["fullName"]);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(DATA_CATEGORIES.map(c => c.name)));
   const [count, setCount] = useState(10);
   const [output, setOutput] = useState("");
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("list");
@@ -262,7 +264,8 @@ export default function RandomDataGeneratorPage() {
     });
   };
 
-  const copyToClipboard = async () => {
+  const copyToClipboard = useCallback(async () => {
+    if (!output) return;
     try {
       await navigator.clipboard.writeText(output);
       setCopied(true);
@@ -271,7 +274,7 @@ export default function RandomDataGeneratorPage() {
     } catch {
       toast.error("Failed to copy to clipboard");
     }
-  };
+  }, [output]);
 
   const downloadFile = () => {
     const extensions: Record<OutputFormat, string> = {
@@ -462,7 +465,9 @@ export default function RandomDataGeneratorPage() {
 
   const generatePassword = () => {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-    return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const array = new Uint32Array(12);
+    crypto.getRandomValues(array);
+    return Array.from(array, (v) => chars[v % chars.length]).join('');
   };
 
   const generateURL = () => {
@@ -565,7 +570,7 @@ export default function RandomDataGeneratorPage() {
   
   const generateAvatar = () => {
     const id = Math.floor(Math.random() * 1000);
-    return `https://robohash.org/${id}?set=set1`;
+    return `avatar-${id}.png`;
   };
 
   const generateLanguage = () => LANGUAGES[Math.floor(Math.random() * LANGUAGES.length)];
@@ -795,17 +800,7 @@ export default function RandomDataGeneratorPage() {
     }
   };
 
-  const generateData = () => {
-    // For small datasets (< 10k), generate in memory
-    if (count <= 10000) {
-      generateInMemory();
-    } else {
-      // For large datasets, stream directly to file
-      generateAndDownloadStreaming();
-    }
-  };
-
-  const generateInMemory = () => {
+  const generateInMemory = useCallback(() => {
     if (selectedTypes.length === 1) {
       // Single type - generate as before
       const results: string[] = [];
@@ -861,7 +856,17 @@ export default function RandomDataGeneratorPage() {
         setOutput(lines.join("\n"));
       }
     }
-  };
+  }, [selectedTypes, count, outputFormat]);
+
+  const generate = useCallback(() => {
+    // For small datasets (< 10k), generate in memory
+    if (count <= 10000) {
+      generateInMemory();
+    } else {
+      // For large datasets, stream directly to file
+      generateAndDownloadStreaming();
+    }
+  }, [count, generateInMemory]);
 
   const generateAndDownloadStreaming = async () => {
     setIsGenerating(true);
@@ -993,6 +998,37 @@ export default function RandomDataGeneratorPage() {
     }
   };
 
+  // Auto-generate on mount
+  useEffect(() => {
+    generate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleClear = useCallback(() => {
+    setOutput("");
+  }, []);
+
+  const isEmpty = !output;
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "c",
+        ctrl: true,
+        shift: true,
+        action: () => { void copyToClipboard(); },
+        description: "Copy output",
+      },
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
+
   const getTypeDescription = (t: DataType): string => {
     const descriptions: Record<DataType, string> = {
       // Personal
@@ -1111,75 +1147,98 @@ export default function RandomDataGeneratorPage() {
       title="Random Data Generator"
       description="Generate realistic test data for development and testing"
     >
-      <div className="space-y-3">
-        {/* Data Type Selection */}
-        <div className="p-3 bg-card border rounded-lg space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">Data Types</Label>
-            <Badge variant="secondary" className="text-xs">
-              {selectedTypes.length} selected
-            </Badge>
-          </div>
-          
-          {DATA_CATEGORIES.map((category) => (
-            <div key={category.name} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  {category.name}
-                </h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={() => {
-                    const allSelected = category.types.every(t => selectedTypes.includes(t));
-                    if (allSelected) {
-                      setSelectedTypes(prev => prev.filter(t => !category.types.includes(t)));
-                    } else {
-                      setSelectedTypes(prev => [...new Set([...prev, ...category.types])]);
-                    }
-                  }}
-                >
-                  {category.types.every(t => selectedTypes.includes(t)) ? "Deselect All" : "Select All"}
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                {category.types.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => toggleType(t)}
-                    className={`p-2 rounded-lg border text-left transition-colors ${
-                      selectedTypes.includes(t)
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-card hover:bg-accent"
-                    }`}
-                  >
-                    <div className="text-xs font-medium capitalize">
-                      {t.replace(/([A-Z])/g, ' $1').trim()}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
-                      {getTypeDescription(t).split(" ").slice(0, 2).join(" ")}
-                    </div>
-                  </button>
-                ))}
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Left Column: Data Types + Settings */}
+        <div className="space-y-3">
+          {/* Data Type Selection */}
+          <div className="p-3 bg-card border rounded-lg space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Data Types</Label>
+              <Badge variant="secondary" className="text-xs">
+                {selectedTypes.length} selected
+              </Badge>
             </div>
-          ))}
-          
-          {selectedTypes.length === 1 && (
-            <p className="text-xs text-muted-foreground pt-2 border-t">
-              {getTypeDescription(selectedTypes[0])}
-            </p>
-          )}
-          {selectedTypes.length > 1 && (
-            <p className="text-xs text-muted-foreground pt-2 border-t">
-              Generating {selectedTypes.length} fields per record
-            </p>
-          )}
-        </div>
+            
+            {DATA_CATEGORIES.map((category) => {
+              const isCollapsed = collapsedGroups.has(category.name);
+              const selectedCount = category.types.filter(t => selectedTypes.includes(t)).length;
+              return (
+                <div key={category.name} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => setCollapsedGroups(prev => {
+                        const next = new Set(prev);
+                        if (next.has(category.name)) next.delete(category.name);
+                        else next.add(category.name);
+                        return next;
+                      })}
+                      className="flex items-center gap-1.5 group"
+                    >
+                      <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isCollapsed ? "" : "rotate-90"}`} />
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide group-hover:text-foreground transition-colors">
+                        {category.name}
+                      </h3>
+                      {selectedCount > 0 && (
+                        <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{selectedCount}</Badge>
+                      )}
+                    </button>
+                    {!isCollapsed && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs"
+                        onClick={() => {
+                          const allSelected = category.types.every(t => selectedTypes.includes(t));
+                          if (allSelected) {
+                            setSelectedTypes(prev => prev.filter(t => !category.types.includes(t)));
+                          } else {
+                            setSelectedTypes(prev => [...new Set([...prev, ...category.types])]);
+                          }
+                        }}
+                      >
+                        {category.types.every(t => selectedTypes.includes(t)) ? "Deselect All" : "Select All"}
+                      </Button>
+                    )}
+                  </div>
+                  {!isCollapsed && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {category.types.map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => toggleType(t)}
+                          className={`p-2 rounded-lg border text-left transition-colors ${
+                            selectedTypes.includes(t)
+                              ? "bg-primary/15 border-primary text-primary"
+                              : "bg-card hover:bg-accent"
+                          }`}
+                        >
+                          <div className="text-xs font-medium capitalize">
+                            {t.replace(/([A-Z])/g, ' $1').trim()}
+                          </div>
+                          <div className={`text-[10px] mt-0.5 line-clamp-1 ${selectedTypes.includes(t) ? "text-primary/60" : "text-muted-foreground"}`}>
+                            {getTypeDescription(t).split(" ").slice(0, 2).join(" ")}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            
+            {selectedTypes.length === 1 && (
+              <p className="text-xs text-muted-foreground pt-2 border-t">
+                {getTypeDescription(selectedTypes[0])}
+              </p>
+            )}
+            {selectedTypes.length > 1 && (
+              <p className="text-xs text-muted-foreground pt-2 border-t">
+                Generating {selectedTypes.length} fields per record
+              </p>
+            )}
+          </div>
 
-        {/* Settings */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Settings */}
           <div className="p-3 bg-card border rounded-lg space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-sm">Count: {count.toLocaleString()}</Label>
@@ -1218,75 +1277,84 @@ export default function RandomDataGeneratorPage() {
           </div>
         </div>
 
-        {/* Generate Button */}
-        <Button onClick={generateData} className="w-full" size="sm" disabled={isGenerating}>
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Generating... {Math.round(progress)}%
-            </>
-          ) : (
-            <>Generate {count.toLocaleString()} {selectedTypes.length === 1 ? selectedTypes[0].charAt(0).toUpperCase() + selectedTypes[0].slice(1).replace(/([A-Z])/g, ' $1') : "Records"}</>
-          )}
-        </Button>
-
-        {/* Progress Bar */}
-        {isGenerating && (
-          <div className="p-3 bg-card border rounded-lg space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span>Generating data...</span>
-              <span className="text-muted-foreground">{Math.round(progress)}%</span>
-            </div>
-            <Progress value={progress} className="h-2" />
-          </div>
-        )}
-
-        {/* Output */}
-        {output && (
-          <div className="p-3 bg-card border rounded-lg space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Generated Data</Label>
+        {/* Right Column: Toolbar + Output */}
+        <div className="space-y-3">
+          {/* Action Toolbar with Regenerate and Clear */}
+          <ActionToolbar
+            right={
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs">
-                  {output.split("\n").length} lines
-                </Badge>
-                <Button
-                  onClick={copyToClipboard}
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs gap-1.5"
-                >
-                  {copied ? (
+                <Button onClick={generate} size="sm" className="gap-2" disabled={isGenerating} aria-label="Regenerate data">
+                  {isGenerating ? (
                     <>
-                      <Check className="h-3 w-3" />
-                      Copied
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      Generating... {Math.round(progress)}%
                     </>
                   ) : (
                     <>
-                      <Copy className="h-3 w-3" />
-                      Copy
+                      <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                      Regenerate
                     </>
                   )}
                 </Button>
+                {output && (
+                  <>
+                    <Badge variant="outline" className="text-xs">
+                      {output.split("\n").length} lines
+                    </Badge>
+                    <Button
+                      onClick={copyToClipboard}
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5"
+                    >
+                      {copied ? <><Check className="h-3 w-3" />Copied</> : <><Copy className="h-3 w-3" />Copy</>}
+                    </Button>
+                    <Button
+                      onClick={downloadFile}
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5"
+                    >
+                      <Download className="h-3 w-3" />
+                      Download
+                    </Button>
+                  </>
+                )}
                 <Button
-                  onClick={downloadFile}
+                  onClick={handleClear}
                   variant="outline"
                   size="sm"
-                  className="h-7 text-xs gap-1.5"
+                  disabled={isEmpty}
+                  aria-label="Clear generated data"
                 >
-                  <Download className="h-3 w-3" />
-                  Download
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                 </Button>
               </div>
+            }
+          />
+
+          {/* Progress Bar */}
+          {isGenerating && (
+            <div className="p-3 bg-card border rounded-lg space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>Generating data...</span>
+                <span className="text-muted-foreground">{Math.round(progress)}%</span>
+              </div>
+              <Progress value={progress} className="h-2" />
             </div>
-            <CopyTextarea
+          )}
+
+          {/* Output */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Generated Data</Label>
+            <CodeEditor
+              language="json"
               value={output}
               readOnly
-              rows={20}
-              className="font-mono text-xs"
+              placeholder="Click Regenerate to generate data..."
             />
           </div>
-        )}
+        </div>
       </div>
     </ToolLayout>
   );

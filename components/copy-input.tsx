@@ -1,4 +1,3 @@
-"use client";
 
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
@@ -69,6 +68,8 @@ export function CopyInput({
           className={`${readOnly ? 'bg-secondary/50' : ''} ${className}`}
           maxLength={maxLength}
           aria-readonly={readOnly || undefined}
+          spellCheck={false}
+          autoComplete="off"
         />
         <Button
           onClick={handleCopy}

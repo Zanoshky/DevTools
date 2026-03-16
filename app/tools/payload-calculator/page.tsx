@@ -1,11 +1,13 @@
-"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { ToolLayout } from "@/components/tool-layout";
-import { CopyTextarea } from "@/components/copy-textarea";
+import { CodeEditor } from "@/components/code-editor";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Zap } from "lucide-react";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { FileText, Trash2, Zap } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 export default function PayloadCalculatorPage() {
@@ -27,6 +29,24 @@ export default function PayloadCalculatorPage() {
   // Compression estimate
   const [estimatedCompressed, setEstimatedCompressed] = useState(0);
   const [compressionRatio, setCompressionRatio] = useState(0);
+
+  const isEmpty = input.length === 0;
+
+  const handleClear = useCallback(() => {
+    setInput("");
+  }, []);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
 
   const calculateSize = (text: string) => {
     if (!text) {
@@ -94,18 +114,32 @@ export default function PayloadCalculatorPage() {
       description="Calculate payload size with detailed metrics and text analysis"
     >
       <div className="space-y-3">
+        {/* Action Toolbar */}
+        <ActionToolbar
+          right={
+            <Button
+              onClick={handleClear}
+              variant="outline"
+              size="sm"
+              disabled={isEmpty}
+              aria-label="Clear all"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          }
+        />
+
         {/* Side-by-side layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Left: Input */}
           <div className="space-y-3">
             <div className="p-3 bg-card border rounded-lg space-y-2">
               <Label className="text-sm font-medium">Payload Input</Label>
-              <CopyTextarea
+              <CodeEditor language="json"
                 value={input}
                 onChange={setInput}
                 placeholder="Enter or paste your payload here..."
-                rows={20}
-                className="font-mono text-xs"
+  
               />
             </div>
 
@@ -114,19 +148,19 @@ export default function PayloadCalculatorPage() {
               <div className="p-3 bg-card border rounded-lg space-y-2">
                 <Label className="text-sm font-medium">Quick Stats</Label>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                  <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                     <span className="text-muted-foreground">Characters:</span>
                     <span className="font-mono font-semibold">{chars.toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                  <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                     <span className="text-muted-foreground">Words:</span>
                     <span className="font-mono font-semibold">{words.toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                  <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                     <span className="text-muted-foreground">Lines:</span>
                     <span className="font-mono font-semibold">{lines.toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                  <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                     <span className="text-muted-foreground">Reading:</span>
                     <span className="font-mono font-semibold">{getReadingTime()} min</span>
                   </div>
@@ -178,27 +212,27 @@ export default function PayloadCalculatorPage() {
                     Text Analysis
                   </Label>
                   <div className="space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                    <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                       <span className="text-muted-foreground">Total Characters:</span>
                       <span className="font-mono font-semibold">{chars.toLocaleString()}</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                    <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                       <span className="text-muted-foreground">Without Spaces:</span>
                       <span className="font-mono font-semibold">{charsNoSpaces.toLocaleString()}</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                    <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                       <span className="text-muted-foreground">Words:</span>
                       <span className="font-mono font-semibold">{words.toLocaleString()}</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                    <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                       <span className="text-muted-foreground">Lines:</span>
                       <span className="font-mono font-semibold">{lines.toLocaleString()}</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                    <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                       <span className="text-muted-foreground">Sentences:</span>
                       <span className="font-mono font-semibold">{sentences.toLocaleString()}</span>
                     </div>
-                    <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                    <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                       <span className="text-muted-foreground">Paragraphs:</span>
                       <span className="font-mono font-semibold">{paragraphs.toLocaleString()}</span>
                     </div>
@@ -239,7 +273,7 @@ export default function PayloadCalculatorPage() {
                 <div className="p-3 bg-card border rounded-lg space-y-2">
                   <Label className="text-sm font-medium">Size Comparisons</Label>
                   <div className="space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                    <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                       <span className="text-muted-foreground">HTTP GET limit (8KB):</span>
                       <Badge 
                         variant="secondary" 
@@ -254,7 +288,7 @@ export default function PayloadCalculatorPage() {
                         {((bytes / 8192) * 100).toFixed(1)}%
                       </Badge>
                     </div>
-                    <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                    <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                       <span className="text-muted-foreground">Email attachment (25MB):</span>
                       <Badge 
                         variant="secondary" 
@@ -269,7 +303,7 @@ export default function PayloadCalculatorPage() {
                         {((mb / 25) * 100).toFixed(2)}%
                       </Badge>
                     </div>
-                    <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                    <div className="flex items-center justify-between p-2 bg-gradient-to-r from-primary/5 to-transparent rounded">
                       <span className="text-muted-foreground">Tweet limit (280 chars):</span>
                       <Badge 
                         variant="secondary" 

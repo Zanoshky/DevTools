@@ -1,4 +1,3 @@
-"use client";
 
 import { useEffect, useState, useCallback } from "react";
 
@@ -77,12 +76,27 @@ export function useToolTracking() {
   }, []);
 
   // Toggle favorite
-  const toggleFavorite = useCallback((id: string) => {
-    setTools((prevTools) =>
-      prevTools.map((tool) =>
-        tool.id === id ? { ...tool, favorite: !tool.favorite } : tool
-      )
-    );
+  const toggleFavorite = useCallback((id: string, name?: string) => {
+    setTools((prevTools) => {
+      const existing = prevTools.find((t) => t.id === id);
+      if (existing) {
+        return prevTools.map((tool) =>
+          tool.id === id ? { ...tool, favorite: !tool.favorite } : tool
+        );
+      }
+      // Tool hasn't been visited yet - create entry as favorite
+      return [
+        ...prevTools,
+        {
+          id,
+          name: name || id,
+          url: id,
+          count: 0,
+          lastUsed: 0,
+          favorite: true,
+        },
+      ];
+    });
   }, []);
 
   // Get favorites

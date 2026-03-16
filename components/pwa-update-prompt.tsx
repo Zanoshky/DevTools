@@ -19,7 +19,6 @@ export function PWAUpdatePrompt() {
     navigator.serviceWorker
       .register('/sw.js')
       .then((reg) => {
-        console.log('[PWA] Service worker registered');
         setRegistration(reg);
 
         // Check for updates on load
@@ -35,11 +34,8 @@ export function PWAUpdatePrompt() {
           const newWorker = reg.installing;
           if (!newWorker) return;
 
-          console.log('[PWA] Update found, installing...');
-
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('[PWA] New version available');
               setShowPrompt(true);
             }
           });
@@ -54,13 +50,12 @@ export function PWAUpdatePrompt() {
     // Listen for messages from service worker
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data && event.data.type === 'SW_UPDATED') {
-        console.log('[PWA] Service worker updated:', event.data.message);
+        // Service worker updated successfully
       }
     });
 
     // Listen for controller change (new SW activated)
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('[PWA] Controller changed, reloading page...');
       window.location.reload();
     });
   }, []);
@@ -82,7 +77,7 @@ export function PWAUpdatePrompt() {
 
   return (
     <Card
-      className="fixed bottom-20 left-4 right-4 lg:bottom-4 lg:left-auto lg:right-4 lg:w-96 p-4 shadow-lg z-50 border-2 border-primary/20 bg-blue-50 dark:bg-blue-950/20"
+      className="fixed bottom-4 left-4 right-4 lg:left-auto lg:right-4 lg:w-96 p-4 shadow-lg z-50 border-2 border-primary/20 bg-blue-50 dark:bg-blue-950/20"
       role="alertdialog"
       aria-label="Application update available"
       aria-describedby="pwa-update-description"

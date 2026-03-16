@@ -1,7 +1,5 @@
-"use client";
-
 import { useEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { useLocation } from "react-router-dom";
 import { useToolTracking } from "@/hooks/use-tool-tracking";
 
 // Map of tool URLs to their names
@@ -9,11 +7,10 @@ const toolMap: Record<string, string> = {
   "/tools/har-analyzer": "HAR Analyzer",
   "/tools/timer": "Timer",
   "/tools/jwt": "JWT Decode",
-  "/tools/json-compare": "JSON Compare",
+  "/tools/json-compare": "Data Compare",
   "/tools/json-editor": "JSON Editor",
-  "/tools/validator-json": "JSON Validator",
-  "/tools/validator-xml": "XML Validator",
-  "/tools/json-xml-converter": "JSON / XML",
+  "/tools/validator-json": "Data Validator",
+
   "/tools/uuid": "UUID Generator",
   "/tools/otp-generator": "OTP Authenticator",
   "/tools/payload-calculator": "Payload Calculator",
@@ -25,22 +22,23 @@ const toolMap: Record<string, string> = {
   "/tools/json-to-code": "JSON to Code",
   "/tools/json-to-openapi": "JSON to OpenAPI",
   "/tools/casing-converter": "JSON Casing",
-  "/tools/validator-yaml": "YAML Validator",
-  "/tools/validator-csv": "CSV Validator",
   "/tools/random-data-generator": "Random Data",
   "/tools/url-encoder": "URL Encoder",
-  "/tools/json-csv-converter": "JSON / CSV",
+
   "/tools/color-hex-converter": "Hex / RGB / HSL",
   "/tools/color-palette-generator": "Color Palette",
   "/tools/color-scheme-designer": "Scheme Designer",
   "/tools/password-generator": "Password Generator",
   "/tools/hash": "Hash Generator",
-  "/tools/json-yaml-converter": "JSON / YAML",
+
   "/tools/curl-hurl-converter": "cURL / Hurl",
+  "/tools/data-converter": "Data Converter",
+  "/tools/key-generator": "Key Generator",
+  "/tools/text-sorter": "Text Sorter",
 };
 
 export function ToolTracker() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const { trackVisit } = useToolTracking();
   const lastTrackedPath = useRef<string | null>(null);
 

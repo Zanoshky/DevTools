@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <title>DevToolbox - Privacy-First Developer Tools</title>
+    <meta name="description" content="Free, privacy-first developer toolkit. JSON editor, JWT decoder, Base64 encoder, UUID generator, regex validator, and 30+ tools. 100% client-side, no data leaves your browser." />
+    <meta name="keywords" content="developer tools, JSON editor, JWT decoder, Base64 encoder, UUID generator, regex validator, privacy tools, client-side tools, web developer utilities, offline developer tools" />
+    <meta name="author" content="Marko Zanoski" />
+    <meta name="creator" content="Marko Zanoski" />
+    <meta name="robots" content="index, follow" />
+    <meta name="googlebot" content="index, follow, max-video-preview:-1, max-image-preview:large, max-snippet:-1" />
+    <meta name="category" content="developer tools" />
+
+    <!-- Apple Web App -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="DevToolbox" />
+
+    <!-- Theme Color -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafafa" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:site_name" content="DevToolbox" />
+    <meta property="og:title" content="DevToolbox - Privacy-First Developer Tools" />
+    <meta property="og:description" content="Free, privacy-first developer toolkit with 30+ tools. JSON, JWT, Base64, UUID, regex, and more. 100% client-side processing." />
+    <meta property="og:image" content="/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="DevToolbox logo" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="DevToolbox - Privacy-First Developer Tools" />
+    <meta name="twitter:description" content="Free, privacy-first developer toolkit with 30+ tools. 100% client-side processing." />
+    <meta name="twitter:image" content="/icon-512.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+
+    <!-- Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://devtoolbox.co" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300..700&family=IBM+Plex+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@100..800&family=Source+Code+Pro:wght@300..900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+    <!-- Theme initialization (before React renders) -->
+    <script>
+      try {
+        var s = JSON.parse(localStorage.getItem('dev-toolbox-appearance') || 'null');
+        var mode = s && s.mode;
+        var accent = s && s.accent;
+        var font = s && s.font;
+        var radius = s && s.radius;
+        if (!mode) {
+          var old = localStorage.getItem('theme');
+          mode = old === 'dark' ? 'dark' : old === 'light' ? 'light' : 'system';
+        }
+        var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) document.documentElement.classList.add('dark');
+        if (accent && accent !== 'blue') document.documentElement.classList.add('theme-' + accent);
+        if (font === 'inter' || font === 'system' || font === 'mono') font = 'jetbrains-mono';
+        if (font) document.documentElement.classList.add('font-' + font);
+        else document.documentElement.classList.add('font-jetbrains-mono');
+        if (radius) document.documentElement.style.setProperty('--radius', radius + 'rem');
+      } catch (e) {}
+    </script>
+  </head>
+  <body class="font-sans">
+    <noscript>
+      <div style="padding:2rem;text-align:center;font-family:sans-serif">
+        <h1>DevToolbox</h1>
+        <p>This application requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
+      </div>
+    </noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "DevToolbox",
+      "description": "Free, privacy-first developer toolkit with 30+ tools. JSON, JWT, Base64, UUID, regex, and more. 100% client-side processing.",
+      "url": "https://devtoolbox.co",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "Marko Zanoski",
+        "url": "https://zanoski.com/me"
+      },
+      "browserRequirements": "Requires JavaScript. Works offline after first load."
+    }
+    </script>
+  </body>
+</html>

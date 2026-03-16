@@ -1,0 +1,9 @@
+node_modules
+dist
+.next
+.git
+.DS_Store
+*.md
+.vscode
+.kiro
+.husky

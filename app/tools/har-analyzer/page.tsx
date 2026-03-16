@@ -1,6 +1,5 @@
-"use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ToolLayout } from "@/components/tool-layout";
 import { ToolCard } from "@/components/tool-card";
@@ -11,6 +10,8 @@ import { Har, HarEntry } from "@/components/har-types";
 import { Upload, FileJson, Trash2, Download, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 export default function HarAnalyzerPage() {
   const [harData, setHarData] = useState<Har | null>(null);
@@ -72,7 +73,9 @@ export default function HarAnalyzerPage() {
     }, 300);
   };
 
-  const clearData = () => {
+  const isEmpty = harData === null;
+
+  const handleClear = useCallback(() => {
     setHarData(null);
     setCompareHar(null);
     setFileName("");
@@ -81,7 +84,19 @@ export default function HarAnalyzerPage() {
       title: "Data cleared",
       description: "HAR data has been removed",
     });
-  };
+  }, [toast]);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
 
   const exportData = () => {
     if (!harData) return;
@@ -100,6 +115,19 @@ export default function HarAnalyzerPage() {
       title="HAR Analyzer"
       description="Analyze HTTP Archive (HAR) files with detailed performance insights"
     >
+      <ActionToolbar
+        right={
+          <Button
+            onClick={handleClear}
+            variant="outline"
+            size="sm"
+            disabled={isEmpty}
+            aria-label="Clear all"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        }
+      />
       <div className="space-y-4">
         {/* Upload/Control Card */}
         <ToolCard>
@@ -171,7 +199,7 @@ export default function HarAnalyzerPage() {
                     <Upload className="h-4 w-4 mr-2" />
                     New File
                   </Button>
-                  <Button variant="outline" size="sm" onClick={clearData}>
+                  <Button variant="outline" size="sm" onClick={handleClear}>
                     <Trash2 className="h-4 w-4 mr-2" />
                     Clear
                   </Button>

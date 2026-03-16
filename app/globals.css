@@ -1,3 +1,19 @@
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("/fonts/OpenDyslexic-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("/fonts/OpenDyslexic-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -63,77 +79,146 @@
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+}
 
-  /* Color Theme Variants */
-  .theme-green {
-    --primary: 142 76% 36%;
-    --ring: 142 76% 36%;
-    --sidebar-primary: 142 76% 36%;
-    --sidebar-ring: 142 76% 36%;
-  }
+/* Color Theme Variants — outside @layer so they always override base */
+html.theme-green {
+  --primary: 142 76% 36%;
+  --primary-foreground: 210 40% 98%;
+  --ring: 142 76% 36%;
+  --sidebar-primary: 142 76% 36%;
+  --sidebar-ring: 142 76% 36%;
+}
 
-  .dark.theme-green {
-    --primary: 142 76% 46%;
-    --ring: 142 76% 46%;
-    --sidebar-primary: 142 76% 46%;
-    --sidebar-ring: 142 76% 46%;
-  }
+html.dark.theme-green {
+  --primary: 142 76% 46%;
+  --primary-foreground: 222.2 84% 4.9%;
+  --ring: 142 76% 46%;
+  --sidebar-primary: 142 76% 46%;
+  --sidebar-ring: 142 76% 46%;
+}
 
-  .theme-purple {
-    --primary: 262 83% 58%;
-    --ring: 262 83% 58%;
-    --sidebar-primary: 262 83% 58%;
-    --sidebar-ring: 262 83% 58%;
-  }
+html.theme-purple {
+  --primary: 262 83% 58%;
+  --primary-foreground: 210 40% 98%;
+  --ring: 262 83% 58%;
+  --sidebar-primary: 262 83% 58%;
+  --sidebar-ring: 262 83% 58%;
+}
 
-  .dark.theme-purple {
-    --primary: 262 83% 68%;
-    --ring: 262 83% 68%;
-    --sidebar-primary: 262 83% 68%;
-    --sidebar-ring: 262 83% 68%;
-  }
+html.dark.theme-purple {
+  --primary: 262 83% 68%;
+  --primary-foreground: 222.2 84% 4.9%;
+  --ring: 262 83% 68%;
+  --sidebar-primary: 262 83% 68%;
+  --sidebar-ring: 262 83% 68%;
+}
 
-  .theme-red {
-    --primary: 0 84% 60%;
-    --ring: 0 84% 60%;
-    --sidebar-primary: 0 84% 60%;
-    --sidebar-ring: 0 84% 60%;
-  }
+html.theme-red {
+  --primary: 0 84% 60%;
+  --primary-foreground: 210 40% 98%;
+  --ring: 0 84% 60%;
+  --sidebar-primary: 0 84% 60%;
+  --sidebar-ring: 0 84% 60%;
+}
 
-  .dark.theme-red {
-    --primary: 0 84% 70%;
-    --ring: 0 84% 70%;
-    --sidebar-primary: 0 84% 70%;
-    --sidebar-ring: 0 84% 70%;
-  }
+html.dark.theme-red {
+  --primary: 0 84% 70%;
+  --primary-foreground: 222.2 84% 4.9%;
+  --ring: 0 84% 70%;
+  --sidebar-primary: 0 84% 70%;
+  --sidebar-ring: 0 84% 70%;
+}
 
-  .theme-orange {
-    --primary: 25 95% 53%;
-    --ring: 25 95% 53%;
-    --sidebar-primary: 25 95% 53%;
-    --sidebar-ring: 25 95% 53%;
-  }
+html.theme-orange {
+  --primary: 25 95% 53%;
+  --primary-foreground: 210 40% 98%;
+  --ring: 25 95% 53%;
+  --sidebar-primary: 25 95% 53%;
+  --sidebar-ring: 25 95% 53%;
+}
 
-  .dark.theme-orange {
-    --primary: 25 95% 63%;
-    --ring: 25 95% 63%;
-    --sidebar-primary: 25 95% 63%;
-    --sidebar-ring: 25 95% 63%;
-  }
+html.dark.theme-orange {
+  --primary: 25 95% 63%;
+  --primary-foreground: 222.2 84% 4.9%;
+  --ring: 25 95% 63%;
+  --sidebar-primary: 25 95% 63%;
+  --sidebar-ring: 25 95% 63%;
+}
 
-  .theme-pink {
-    --primary: 330 81% 60%;
-    --ring: 330 81% 60%;
-    --sidebar-primary: 330 81% 60%;
-    --sidebar-ring: 330 81% 60%;
-  }
+html.theme-pink {
+  --primary: 330 81% 60%;
+  --primary-foreground: 210 40% 98%;
+  --ring: 330 81% 60%;
+  --sidebar-primary: 330 81% 60%;
+  --sidebar-ring: 330 81% 60%;
+}
 
-  .dark.theme-pink {
-    --primary: 330 81% 70%;
-    --ring: 330 81% 70%;
-    --sidebar-primary: 330 81% 70%;
-    --sidebar-ring: 330 81% 70%;
-  }
+html.dark.theme-pink {
+  --primary: 330 81% 70%;
+  --primary-foreground: 222.2 84% 4.9%;
+  --ring: 330 81% 70%;
+  --sidebar-primary: 330 81% 70%;
+  --sidebar-ring: 330 81% 70%;
+}
+
+html.theme-yellow {
+  --primary: 45 93% 47%;
+  --primary-foreground: 0 0% 0%;
+  --ring: 45 93% 47%;
+  --sidebar-primary: 45 93% 47%;
+  --sidebar-ring: 45 93% 47%;
+}
+
+html.dark.theme-yellow {
+  --primary: 45 93% 58%;
+  --primary-foreground: 0 0% 0%;
+  --ring: 45 93% 58%;
+  --sidebar-primary: 45 93% 58%;
+  --sidebar-ring: 45 93% 58%;
+}
+
+html.theme-teal {
+  --primary: 173 80% 36%;
+  --primary-foreground: 210 40% 98%;
+  --ring: 173 80% 36%;
+  --sidebar-primary: 173 80% 36%;
+  --sidebar-ring: 173 80% 36%;
+}
+
+html.dark.theme-teal {
+  --primary: 173 80% 46%;
+  --primary-foreground: 222.2 84% 4.9%;
+  --ring: 173 80% 46%;
+  --sidebar-primary: 173 80% 46%;
+  --sidebar-ring: 173 80% 46%;
+}
+
+/* Font family overrides — also outside @layer */
+html.font-jetbrains-mono body {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html.font-fira-code body {
+  font-family: "Fira Code", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html.font-source-code-pro body {
+  font-family: "Source Code Pro", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html.font-ibm-plex-mono body {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html.font-space-mono body {
+  font-family: "Space Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html.font-dyslexic body {
+  font-family: "OpenDyslexic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0.05em;
+  word-spacing: 0.1em;
 }
 
 @layer base {
@@ -143,6 +228,7 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    overflow-x: hidden;
   }
 }
 
@@ -352,19 +438,6 @@ select {
   }
   100% {
     left: 100%;
-  }
-}
-
-/* Responsive typography */
-@media (max-width: 640px) {
-  html {
-    font-size: 14px;
-  }
-}
-
-@media (min-width: 1920px) {
-  html {
-    font-size: 18px;
   }
 }
 

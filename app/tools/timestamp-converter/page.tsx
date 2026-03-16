@@ -1,217 +1,129 @@
-"use client";
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ToolLayout } from "@/components/tool-layout";
-import { ToolCard } from "@/components/tool-card";
 import { CopyInput } from "@/components/copy-input";
 import { HistorySidebar } from "@/components/history-sidebar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Clock,
-  Calendar,
-  ArrowRightLeft,
-  Copy,
-  RefreshCw,
-} from "lucide-react";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { EmptyState } from "@/components/empty-state";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { Clock, Calendar, RefreshCw, Trash2 } from "lucide-react";
+
+type Mode = "epoch-to-date" | "date-to-epoch";
+type Unit = "seconds" | "milliseconds";
 
 export default function TimestampConverterPage() {
-  const [currentTime, setCurrentTime] = useState<number | null>(null);
-  
-  // Timestamp to Date
-  const [timestamp, setTimestamp] = useState("");
-  const [timestampFormat, setTimestampFormat] = useState<"seconds" | "milliseconds">("seconds");
-  
-  // Date to Timestamp
+  const [mode, setMode] = useState<Mode>("epoch-to-date");
+  const [unit, setUnit] = useState<Unit>("seconds");
+  const [epoch, setEpoch] = useState("");
   const [dateInput, setDateInput] = useState("");
   const [timeInput, setTimeInput] = useState("");
-  const [timezoneOffset, setTimezoneOffset] = useState("local");
-  
-  // History
-  const [history, setHistory] = useState<Array<{ timestamp: string; format: "seconds" | "milliseconds"; date: string }>>([]);
+  const [tz, setTz] = useState<"local" | "utc">("local");
+  const [error, setError] = useState("");
+  const [history, setHistory] = useState<string[]>([]);
 
-  useEffect(() => {
-    // Initialize current time on client only
-    setCurrentTime(Date.now());
-    
-    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const isEmpty = epoch === "" && dateInput === "" && timeInput === "";
 
-  // Load history
+  // Load/save history
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("timestamp-converter-history");
+    if (typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem("epoch-converter-history");
       if (stored) setHistory(JSON.parse(stored));
-    }
+    } catch (e) { console.error("Failed to load:", e); }
   }, []);
 
-  // Save history
   useEffect(() => {
-    if (typeof window !== "undefined" && history.length > 0) {
-      localStorage.setItem("timestamp-converter-history", JSON.stringify(history));
-    }
+    if (typeof window === "undefined" || history.length === 0) return;
+    localStorage.setItem("epoch-converter-history", JSON.stringify(history));
   }, [history]);
 
-  useEffect(() => {
-    // Initialize with current date/time on client only
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    
-    setDateInput(`${year}-${month}-${day}`);
-    setTimeInput(`${hours}:${minutes}:${seconds}`);
-    setTimestamp(Math.floor(Date.now() / 1000).toString());
+  const addHistory = useCallback((val: string) => {
+    setHistory((prev) => [val, ...prev.filter((v) => v !== val).slice(0, 19)]);
   }, []);
 
-  const addToHistory = (ts: string, format: "seconds" | "milliseconds") => {
-    const numTs = parseInt(ts);
-    if (isNaN(numTs)) return;
-    
-    const date = new Date(format === "seconds" ? numTs * 1000 : numTs);
-    if (isNaN(date.getTime())) return;
-    
-    const historyItem = {
-      timestamp: ts,
-      format,
-      date: date.toISOString(),
-    };
-    
-    setHistory((prev) => [
-      historyItem,
-      ...prev.filter(item => item.timestamp !== ts || item.format !== format).slice(0, 9)
-    ]);
-  };
-
-  const clearHistory = () => {
+  const clearHistory = useCallback(() => {
     setHistory([]);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("timestamp-converter-history");
-    }
-  };
+    if (typeof window !== "undefined") localStorage.removeItem("epoch-converter-history");
+  }, []);
 
-  const getCurrentTimestamp = () => {
+  const handleClear = useCallback(() => {
+    setEpoch("");
+    setDateInput("");
+    setTimeInput("");
+    setError("");
+  }, []);
+
+  const handleNow = useCallback(() => {
     const now = Date.now();
-    const ts = timestampFormat === "seconds" ? Math.floor(now / 1000).toString() : now.toString();
-    setTimestamp(ts);
-    addToHistory(ts, timestampFormat);
-  };
+    if (mode === "epoch-to-date") {
+      const val = unit === "seconds" ? Math.floor(now / 1000).toString() : now.toString();
+      setEpoch(val);
+      addHistory(val);
+    } else {
+      const d = new Date(now);
+      setDateInput(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`);
+      setTimeInput(`${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`);
+    }
+    setError("");
+  }, [mode, unit, addHistory]);
 
-  // Add to history only after user stops typing (debounced)
-  useEffect(() => {
-    if (!timestamp || isNaN(parseInt(timestamp))) return;
-    
-    const timer = setTimeout(() => {
-      addToHistory(timestamp, timestampFormat);
-    }, 1000); // 1 second debounce
-    
-    return () => clearTimeout(timer);
-  }, [timestamp, timestampFormat]);
+  useKeyboardShortcuts({
+    shortcuts: [
+      { key: "x", ctrl: true, shift: true, action: handleClear, description: "Clear all" },
+    ],
+  });
 
-  const formatTimestamp = (ts: string) => {
+  // --- Epoch to Date ---
+  const epochResult = (() => {
+    if (!epoch || isNaN(Number(epoch))) return null;
     try {
-      const numTs = parseInt(ts);
-      if (isNaN(numTs)) return null;
-      
-      const date = new Date(timestampFormat === "seconds" ? numTs * 1000 : numTs);
-      
-      if (isNaN(date.getTime())) return null;
-
+      const ms = unit === "seconds" ? Number(epoch) * 1000 : Number(epoch);
+      const d = new Date(ms);
+      if (isNaN(d.getTime())) return null;
       return {
-        iso: date.toISOString(),
-        local: date.toLocaleString(),
-        utc: date.toUTCString(),
-        date: date.toLocaleDateString(),
-        time: date.toLocaleTimeString(),
-        year: date.getFullYear(),
-        month: date.getMonth() + 1,
-        day: date.getDate(),
-        hours: date.getHours(),
-        minutes: date.getMinutes(),
-        seconds: date.getSeconds(),
-        milliseconds: date.getMilliseconds(),
-        dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
+        iso: d.toISOString(),
+        local: d.toLocaleString(),
+        utc: d.toUTCString(),
+        day: d.toLocaleDateString("en-US", { weekday: "long" }),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        unixSeconds: Math.floor(date.getTime() / 1000),
-        unixMilliseconds: date.getTime(),
+        s: Math.floor(d.getTime() / 1000),
+        ms: d.getTime(),
+        parts: {
+          year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(),
+          hours: d.getHours(), min: d.getMinutes(), sec: d.getSeconds(),
+        },
       };
-    } catch {
-      return null;
-    }
-  };
+    } catch { return null; }
+  })();
 
-  const dateToTimestamp = () => {
+  // --- Date to Epoch ---
+  const dateResult = (() => {
+    if (!dateInput) return null;
     try {
-      if (!dateInput) return null;
-      
-      const dateTimeString = timeInput 
-        ? `${dateInput}T${timeInput}`
-        : `${dateInput}T00:00:00`;
-      
-      let date: Date;
-      
-      if (timezoneOffset === "utc") {
-        date = new Date(dateTimeString + "Z");
-      } else {
-        date = new Date(dateTimeString);
-      }
-      
-      if (isNaN(date.getTime())) return null;
-
+      const str = timeInput ? `${dateInput}T${timeInput}` : `${dateInput}T00:00:00`;
+      const d = tz === "utc" ? new Date(str + "Z") : new Date(str);
+      if (isNaN(d.getTime())) return null;
       return {
-        seconds: Math.floor(date.getTime() / 1000),
-        milliseconds: date.getTime(),
-        iso: date.toISOString(),
-        local: date.toLocaleString(),
-        utc: date.toUTCString(),
+        s: Math.floor(d.getTime() / 1000),
+        ms: d.getTime(),
+        iso: d.toISOString(),
+        local: d.toLocaleString(),
+        utc: d.toUTCString(),
       };
-    } catch {
-      return null;
-    }
-  };
+    } catch { return null; }
+  })();
 
-  const timestampFormats = formatTimestamp(timestamp);
-  const dateTimestamp = dateToTimestamp();
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
-
-  const swapToTimestamp = () => {
-    if (dateTimestamp) {
-      setTimestamp(dateTimestamp.seconds.toString());
-      setTimestampFormat("seconds");
-    }
-  };
-
-  const swapToDate = () => {
-    if (timestampFormats) {
-      const date = new Date(timestampFormat === "seconds" ? parseInt(timestamp) * 1000 : parseInt(timestamp));
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      const seconds = String(date.getSeconds()).padStart(2, '0');
-      
-      setDateInput(`${year}-${month}-${day}`);
-      setTimeInput(`${hours}:${minutes}:${seconds}`);
-    }
-  };
+  // Auto-add to history on epoch change
+  useEffect(() => {
+    if (!epoch || isNaN(Number(epoch))) return;
+    const timer = setTimeout(() => addHistory(epoch), 800);
+    return () => clearTimeout(timer);
+  }, [epoch, addHistory]);
 
   return (
     <ToolLayout
@@ -220,246 +132,188 @@ export default function TimestampConverterPage() {
       sidebar={
         <HistorySidebar
           items={history}
-          onSelect={(item) => {
-            setTimestamp(item.timestamp);
-            setTimestampFormat(item.format);
-          }}
+          onSelect={(val) => { setEpoch(val); setMode("epoch-to-date"); }}
           onClear={clearHistory}
-          renderItem={(item) => (
-            <>
-              <div className="font-mono text-xs truncate">{item.timestamp}</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">
-                {new Date(item.date).toLocaleString()}
-              </div>
-              <Badge variant="outline" className="text-[9px] mt-1">
-                {item.format}
-              </Badge>
-            </>
-          )}
+          renderItem={(val) => {
+            const n = Number(val);
+            const ms = n > 1e12 ? n : n * 1000;
+            return (
+              <>
+                <div className="font-mono text-xs truncate">{val}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {isNaN(ms) ? "" : new Date(ms).toLocaleString()}
+                </div>
+              </>
+            );
+          }}
         />
       }
     >
-      <ToolCard>
-        <div className="space-y-6">
-          {/* Current Time Display */}
-          <div className="rounded-lg bg-gradient-to-r from-primary/10 to-purple-500/10 p-4 border">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-primary" />
-                <span className="text-sm font-semibold">Current Time</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setCurrentTime(Date.now())}
-              >
-                <RefreshCw className="h-4 w-4" />
+      <div className="space-y-3">
+        <ActionToolbar
+          left={
+            <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
+              <TabsList className="h-8">
+                <TabsTrigger value="epoch-to-date" className="text-xs gap-1.5">
+                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                  Epoch to Date
+                </TabsTrigger>
+                <TabsTrigger value="date-to-epoch" className="text-xs gap-1.5">
+                  <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+                  Date to Epoch
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          }
+          right={
+            <>
+              <Button onClick={handleNow} variant="outline" size="sm" className="gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                Now
               </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-background/50 rounded p-2">
-                <div className="text-xs text-muted-foreground mb-1">Seconds</div>
-                <div className="text-lg font-bold font-mono">
-                  {currentTime ? Math.floor(currentTime / 1000) : "---"}
-                </div>
+              <Button onClick={handleClear} variant="outline" size="sm" disabled={isEmpty} aria-label="Clear all">
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            </>
+          }
+        />
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription className="text-xs">{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {mode === "epoch-to-date" ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setUnit("seconds")}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
+                    unit === "seconds" ? "bg-primary/10 border-primary text-primary" : "bg-card hover:bg-secondary"
+                  }`}
+                >
+                  Seconds
+                </button>
+                <button
+                  onClick={() => setUnit("milliseconds")}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
+                    unit === "milliseconds" ? "bg-primary/10 border-primary text-primary" : "bg-card hover:bg-secondary"
+                  }`}
+                >
+                  Milliseconds
+                </button>
               </div>
-              <div className="bg-background/50 rounded p-2">
-                <div className="text-xs text-muted-foreground mb-1">Milliseconds</div>
-                <div className="text-lg font-bold font-mono">
-                  {currentTime || "---"}
+            </div>
+
+            <CopyInput
+              label="Epoch Timestamp"
+              value={epoch}
+              onChange={setEpoch}
+              placeholder={unit === "seconds" ? "1609459200" : "1609459200000"}
+              className="font-mono"
+            />
+
+            {epochResult ? (
+              <>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline" className="text-[10px]">{epochResult.day}</Badge>
+                  <Badge variant="outline" className="text-[10px]">{epochResult.timezone}</Badge>
                 </div>
-              </div>
-            </div>
-            <div className="text-sm text-center mt-2 text-muted-foreground">
-              {currentTime ? new Date(currentTime).toLocaleString() : "Loading..."}
-            </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <CopyInput label="ISO 8601" value={epochResult.iso} readOnly />
+                  <CopyInput label="Local" value={epochResult.local} readOnly />
+                  <CopyInput label="UTC" value={epochResult.utc} readOnly />
+                </div>
+
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                  {(["year", "month", "day", "hours", "min", "sec"] as const).map((k) => (
+                    <div key={k} className="rounded-lg bg-primary/5 border p-2 text-center">
+                      <div className="text-[10px] text-muted-foreground capitalize">{k}</div>
+                      <div className="text-sm font-bold font-mono">{epochResult.parts[k]}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <CopyInput label="Unix (s)" value={epochResult.s.toString()} readOnly className="font-mono" />
+                  <CopyInput label="Unix (ms)" value={epochResult.ms.toString()} readOnly className="font-mono" />
+                </div>
+              </>
+            ) : (
+              !epoch && (
+                <EmptyState icon={Clock} message="Enter an epoch timestamp to convert" />
+              )
+            )}
           </div>
-
-          <Tabs defaultValue="timestamp-to-date" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="timestamp-to-date">
-                <Clock className="h-4 w-4 mr-2" />
-                Epoch → Date
-              </TabsTrigger>
-              <TabsTrigger value="date-to-timestamp">
-                <Calendar className="h-4 w-4 mr-2" />
-                Date → Epoch
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Timestamp to Date */}
-            <TabsContent value="timestamp-to-date" className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label>Format</Label>
-                <Select value={timestampFormat} onValueChange={(v) => setTimestampFormat(v as "seconds" | "milliseconds")}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="seconds">Seconds (Unix Epoch)</SelectItem>
-                    <SelectItem value="milliseconds">Milliseconds (Unix Epoch)</SelectItem>
-                  </SelectContent>
-                </Select>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="ec-date" className="text-xs">Date</Label>
+                <Input id="ec-date" type="date" value={dateInput} onChange={(e) => setDateInput(e.target.value)} className="h-8 text-xs" />
               </div>
-
-              <CopyInput
-                label="Epoch Timestamp"
-                value={timestamp}
-                onChange={setTimestamp}
-                placeholder="Enter epoch timestamp..."
-                className="font-mono"
-                id="timestamp-input"
-              />
-
-              <div className="flex gap-2">
-                <Button onClick={getCurrentTimestamp} className="flex-1" size="lg">
-                  Use Current Time
-                </Button>
-                <Button onClick={swapToDate} variant="outline" size="lg">
-                  <ArrowRightLeft className="h-4 w-4" />
-                </Button>
+              <div className="space-y-1.5">
+                <Label htmlFor="ec-time" className="text-xs">Time</Label>
+                <Input id="ec-time" type="time" step="1" value={timeInput} onChange={(e) => setTimeInput(e.target.value)} className="h-8 text-xs" />
               </div>
+            </div>
 
-              {timestampFormats && (
-                <div className="pt-4 border-t space-y-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline">{timestampFormats.dayOfWeek}</Badge>
-                    <Badge variant="outline">{timestampFormats.timezone}</Badge>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">TZ:</Label>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setTz("local")}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
+                    tz === "local" ? "bg-primary/10 border-primary text-primary" : "bg-card hover:bg-secondary"
+                  }`}
+                >
+                  Local
+                </button>
+                <button
+                  onClick={() => setTz("utc")}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
+                    tz === "utc" ? "bg-primary/10 border-primary text-primary" : "bg-card hover:bg-secondary"
+                  }`}
+                >
+                  UTC
+                </button>
+              </div>
+            </div>
+
+            {dateResult ? (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 p-2.5 text-center">
+                    <div className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">Seconds</div>
+                    <div className="font-mono text-sm font-bold mt-0.5">{dateResult.s}</div>
                   </div>
-
-                  <CopyInput label="ISO 8601" value={timestampFormats.iso} readOnly />
-                  <CopyInput label="Local" value={timestampFormats.local} readOnly />
-                  <CopyInput label="UTC" value={timestampFormats.utc} readOnly />
-
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <StatBox label="Year" value={timestampFormats.year} />
-                    <StatBox label="Month" value={timestampFormats.month} />
-                    <StatBox label="Day" value={timestampFormats.day} />
-                    <StatBox label="Hours" value={timestampFormats.hours} />
-                    <StatBox label="Minutes" value={timestampFormats.minutes} />
-                    <StatBox label="Seconds" value={timestampFormats.seconds} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-muted/50 rounded-lg p-3 border">
-                      <div className="text-xs text-muted-foreground mb-1">Unix (seconds)</div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">{timestampFormats.unixSeconds}</div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyToClipboard(timestampFormats.unixSeconds.toString())}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="bg-muted/50 rounded-lg p-3 border">
-                      <div className="text-xs text-muted-foreground mb-1">Unix (milliseconds)</div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm">{timestampFormats.unixMilliseconds}</div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyToClipboard(timestampFormats.unixMilliseconds.toString())}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
+                  <div className="rounded-lg bg-green-50 dark:bg-green-950/20 p-2.5 text-center">
+                    <div className="text-[10px] text-green-600 dark:text-green-400 font-medium">Milliseconds</div>
+                    <div className="font-mono text-sm font-bold mt-0.5">{dateResult.ms}</div>
                   </div>
                 </div>
-              )}
-            </TabsContent>
 
-            {/* Date to Timestamp */}
-            <TabsContent value="date-to-timestamp" className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label>Date</Label>
-                <Input
-                  type="date"
-                  value={dateInput}
-                  onChange={(e) => setDateInput(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Time (Optional)</Label>
-                <Input
-                  type="time"
-                  step="1"
-                  value={timeInput}
-                  onChange={(e) => setTimeInput(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Timezone</Label>
-                <Select value={timezoneOffset} onValueChange={setTimezoneOffset}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="local">Local Time</SelectItem>
-                    <SelectItem value="utc">UTC</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Button onClick={swapToTimestamp} variant="outline" size="lg" className="w-full">
-                <ArrowRightLeft className="h-4 w-4 mr-2" />
-                Convert to Epoch
-              </Button>
-
-              {dateTimestamp && (
-                <div className="pt-4 border-t space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-                      <div className="text-xs text-muted-foreground mb-1">Seconds</div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-lg font-bold">{dateTimestamp.seconds}</div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyToClipboard(dateTimestamp.seconds.toString())}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="bg-purple-50 dark:bg-purple-950/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
-                      <div className="text-xs text-muted-foreground mb-1">Milliseconds</div>
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-lg font-bold">{dateTimestamp.milliseconds}</div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyToClipboard(dateTimestamp.milliseconds.toString())}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <CopyInput label="ISO 8601" value={dateTimestamp.iso} readOnly />
-                  <CopyInput label="Local" value={dateTimestamp.local} readOnly />
-                  <CopyInput label="UTC" value={dateTimestamp.utc} readOnly />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <CopyInput label="ISO 8601" value={dateResult.iso} readOnly />
+                  <CopyInput label="Local" value={dateResult.local} readOnly />
+                  <CopyInput label="UTC" value={dateResult.utc} readOnly />
                 </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
-      </ToolCard>
+              </>
+            ) : (
+              !dateInput && (
+                <EmptyState icon={Calendar} message="Select a date and time to convert" />
+              )
+            )}
+          </div>
+        )}
+      </div>
     </ToolLayout>
   );
 }
 
-function StatBox({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="bg-muted/50 rounded-lg p-3 border">
-      <div className="text-xs text-muted-foreground mb-1">{label}</div>
-      <div className="text-xl font-bold">{value}</div>
-    </div>
-  );
+function p(n: number): string {
+  return String(n).padStart(2, "0");
 }

@@ -1,13 +1,18 @@
-"use client";
-
 import { Zap } from "lucide-react";
+import { useHead } from "@/hooks/use-head";
 
 export default function BlogPage() {
+  useHead({
+    title: "Blog | DevToolbox",
+    description: "Tips, tutorials, and updates from the DevToolbox team. Learn about developer tools, privacy-first development, and web utilities.",
+    canonical: "https://devtoolbox.co/blog",
+  });
+
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <section className="relative py-20 px-4 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-purple-500/5 to-pink-500/5" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5" />
         <div className="absolute inset-0" />
 
         <div className="container mx-auto max-w-4xl relative">

@@ -1,17 +1,19 @@
-"use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import VanillaJSONEditor from "@/components/VanillaJSONEditor";
 import { type Content, type JSONContent, Mode } from "vanilla-jsoneditor";
 import { ToolLayout } from "@/components/tool-layout";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { ActionToolbar } from "@/components/action-toolbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  GitCompare, 
-  CheckCircle2, 
-  XCircle, 
+import {
+  GitCompare,
+  CheckCircle2,
+  XCircle,
   AlertCircle,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Trash2,
 } from "lucide-react";
 
 type DiffResult = {
@@ -56,6 +58,20 @@ export default function JSONEditorPage() {
   const [compareMode, setCompareMode] = useState(false);
   const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
 
+  const isContentEmpty = useCallback((c: Content): boolean => {
+    if ("text" in c && c.text !== undefined) {
+      return c.text.trim() === "";
+    }
+    if ("json" in c && c.json !== undefined) {
+      if (c.json === null || c.json === undefined) return true;
+      if (typeof c.json === "object" && Object.keys(c.json as Record<string, unknown>).length === 0) return true;
+      return false;
+    }
+    return true;
+  }, []);
+
+  const isEmpty = isContentEmpty(content) && (!compareMode || isContentEmpty(content2));
+
   const handleChange = (newContent: Content) => {
     setContent(newContent);
     if (compareMode) {
@@ -70,13 +86,13 @@ export default function JSONEditorPage() {
     }
   };
 
-  const getJsonObject = (content: Content): unknown => {
+  const getJsonObject = (c: Content): unknown => {
     try {
-      if ('json' in content && content.json !== undefined) {
-        return content.json;
+      if ("json" in c && c.json !== undefined) {
+        return c.json;
       }
-      if ('text' in content && content.text !== undefined) {
-        return JSON.parse(content.text);
+      if ("text" in c && c.text !== undefined) {
+        return JSON.parse(c.text);
       }
       return {};
     } catch {
@@ -84,25 +100,25 @@ export default function JSONEditorPage() {
     }
   };
 
-  const flattenObject = (obj: Record<string, unknown>, prefix = ''): Record<string, unknown> => {
+  const flattenObject = (obj: Record<string, unknown>, prefix = ""): Record<string, unknown> => {
     const flattened: Record<string, unknown> = {};
-    
+
     for (const key in obj) {
       const path = prefix ? `${prefix}.${key}` : key;
-      
-      if (obj[key] !== null && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+
+      if (obj[key] !== null && typeof obj[key] === "object" && !Array.isArray(obj[key])) {
         Object.assign(flattened, flattenObject(obj[key] as Record<string, unknown>, path));
       } else {
         flattened[path] = obj[key];
       }
     }
-    
+
     return flattened;
   };
 
-  const performDiff = (content1: Content, content2: Content) => {
+  const performDiff = (content1: Content, cont2: Content) => {
     const json1 = getJsonObject(content1);
-    const json2 = getJsonObject(content2);
+    const json2 = getJsonObject(cont2);
 
     const flat1 = flattenObject(json1 as Record<string, unknown>);
     const flat2 = flattenObject(json2 as Record<string, unknown>);
@@ -112,7 +128,6 @@ export default function JSONEditorPage() {
     const modified: string[] = [];
     let unchanged = 0;
 
-    // Check for removed and modified keys
     for (const key in flat1) {
       if (!(key in flat2)) {
         removed.push(key);
@@ -123,7 +138,6 @@ export default function JSONEditorPage() {
       }
     }
 
-    // Check for added keys
     for (const key in flat2) {
       if (!(key in flat1)) {
         added.push(key);
@@ -136,7 +150,7 @@ export default function JSONEditorPage() {
   const toggleCompareMode = () => {
     const newMode = !compareMode;
     setCompareMode(newMode);
-    
+
     if (newMode) {
       performDiff(content, content2);
     } else {
@@ -153,104 +167,137 @@ export default function JSONEditorPage() {
     }
   };
 
+  const handleClear = useCallback(() => {
+    setContent({ text: "" });
+    setContent2({ text: "" });
+    setDiffResult(null);
+    setCompareMode(false);
+  }, []);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
+
   return (
     <ToolLayout
       title="JSON Editor"
       description="Professional JSON editor with tree and text views"
-      maxWidth="7xl"
     >
       <div className="space-y-3">
-        {/* Compact Toolbar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 bg-card border rounded-lg">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant={compareMode ? "default" : "outline"}
-              onClick={toggleCompareMode}
-              size="sm"
-              className="gap-2"
-            >
-              <GitCompare className="h-4 w-4" />
-              {compareMode ? "Exit" : "Compare"}
-            </Button>
-
-            {compareMode && (
+        <ActionToolbar
+          left={
+            <>
               <Button
-                variant="outline"
-                onClick={swapEditors}
+                variant={compareMode ? "default" : "outline"}
+                onClick={toggleCompareMode}
                 size="sm"
                 className="gap-2"
+                aria-label={compareMode ? "Exit compare mode" : "Compare JSON"}
               >
-                <ArrowLeftRight className="h-4 w-4" />
-                Swap
+                <GitCompare className="h-4 w-4" aria-hidden="true" />
+                {compareMode ? "Exit" : "Compare"}
               </Button>
-            )}
-          </div>
 
-          {diffResult && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {diffResult.added.length > 0 && (
-                <Badge variant="default" className="bg-green-500 gap-1 text-xs px-2 py-0">
-                  <CheckCircle2 className="h-3 w-3" />
-                  +{diffResult.added.length}
-                </Badge>
+              {compareMode && (
+                <Button
+                  variant="outline"
+                  onClick={swapEditors}
+                  size="sm"
+                  className="gap-2"
+                  aria-label="Swap editors"
+                >
+                  <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+                  Swap
+                </Button>
               )}
-              {diffResult.removed.length > 0 && (
-                <Badge variant="destructive" className="gap-1 text-xs px-2 py-0">
-                  <XCircle className="h-3 w-3" />
-                  -{diffResult.removed.length}
-                </Badge>
+            </>
+          }
+          right={
+            <>
+              {diffResult && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {diffResult.added.length > 0 && (
+                    <Badge variant="default" className="bg-green-500 gap-1 text-xs px-2 py-0">
+                      <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                      +{diffResult.added.length}
+                    </Badge>
+                  )}
+                  {diffResult.removed.length > 0 && (
+                    <Badge variant="destructive" className="gap-1 text-xs px-2 py-0">
+                      <XCircle className="h-3 w-3" aria-hidden="true" />
+                      -{diffResult.removed.length}
+                    </Badge>
+                  )}
+                  {diffResult.modified.length > 0 && (
+                    <Badge variant="secondary" className="bg-orange-500 text-white gap-1 text-xs px-2 py-0">
+                      <AlertCircle className="h-3 w-3" aria-hidden="true" />
+                      ~{diffResult.modified.length}
+                    </Badge>
+                  )}
+                  {diffResult.unchanged > 0 && (
+                    <Badge variant="outline" className="text-xs px-2 py-0">
+                      ={diffResult.unchanged}
+                    </Badge>
+                  )}
+                </div>
               )}
-              {diffResult.modified.length > 0 && (
-                <Badge variant="secondary" className="bg-orange-500 text-white gap-1 text-xs px-2 py-0">
-                  <AlertCircle className="h-3 w-3" />
-                  ~{diffResult.modified.length}
-                </Badge>
-              )}
-              {diffResult.unchanged > 0 && (
-                <Badge variant="outline" className="text-xs px-2 py-0">
-                  ={diffResult.unchanged}
-                </Badge>
-              )}
-            </div>
-          )}
-        </div>
+              <Button
+                onClick={handleClear}
+                variant="outline"
+                size="sm"
+                disabled={isEmpty}
+                aria-label="Clear editor"
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            </>
+          }
+        />
 
         {/* Compact Diff Details */}
         {diffResult && (diffResult.added.length > 0 || diffResult.removed.length > 0 || diffResult.modified.length > 0) && (
           <div className="p-3 bg-card border rounded-lg space-y-2 text-xs">
             {diffResult.added.length > 0 && (
               <div className="flex items-start gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-0.5 shrink-0" aria-hidden="true" />
                 <div className="min-w-0">
                   <span className="font-semibold">Added:</span>{" "}
-                  <span className="text-muted-foreground break-all">{diffResult.added.join(', ')}</span>
+                  <span className="text-muted-foreground break-all">{diffResult.added.join(", ")}</span>
                 </div>
               </div>
             )}
 
             {diffResult.removed.length > 0 && (
               <div className="flex items-start gap-2">
-                <XCircle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" />
+                <XCircle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" aria-hidden="true" />
                 <div className="min-w-0">
                   <span className="font-semibold">Removed:</span>{" "}
-                  <span className="text-muted-foreground break-all">{diffResult.removed.join(', ')}</span>
+                  <span className="text-muted-foreground break-all">{diffResult.removed.join(", ")}</span>
                 </div>
               </div>
             )}
 
             {diffResult.modified.length > 0 && (
               <div className="flex items-start gap-2">
-                <AlertCircle className="h-3.5 w-3.5 text-orange-600 mt-0.5 shrink-0" />
+                <AlertCircle className="h-3.5 w-3.5 text-orange-600 mt-0.5 shrink-0" aria-hidden="true" />
                 <div className="min-w-0">
                   <span className="font-semibold">Modified:</span>{" "}
-                  <span className="text-muted-foreground break-all">{diffResult.modified.join(', ')}</span>
+                  <span className="text-muted-foreground break-all">{diffResult.modified.join(", ")}</span>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Editor(s) - No titles, maximized space */}
+        {/* Editor(s) */}
         <div className={compareMode ? "grid grid-cols-1 xl:grid-cols-2 gap-3" : ""}>
           <div className="border rounded-lg overflow-hidden bg-card">
             <div className="h-[calc(100vh-240px)] min-h-[600px]">
@@ -294,3 +341,4 @@ export default function JSONEditorPage() {
     </ToolLayout>
   );
 }
+

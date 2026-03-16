@@ -1,9 +1,9 @@
-"use client";
-
 import { useState } from "react";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { useToolTracking } from "@/hooks/use-tool-tracking";
+import { useHead } from "@/hooks/use-head";
+import { useOsDetect } from "@/hooks/use-os-detect";
 import {
   FileCheck,
   GitCompare,
@@ -32,6 +32,7 @@ import {
   Shield,
   Zap,
   Ban,
+  Keyboard,
 } from "lucide-react";
 
 const toolItems = [
@@ -57,10 +58,10 @@ const toolItems = [
     category: "Crypto",
   },
   {
-    name: "JSON Compare",
+    name: "Data Compare",
     href: "/tools/json-compare",
     icon: GitCompare,
-    description: "Compare JSON objects with diff view",
+    description: "Compare JSON, YAML, or text side by side with diff view",
     category: "Analyzers",
   },
   {
@@ -71,26 +72,13 @@ const toolItems = [
     category: "Editors",
   },
   {
-    name: "JSON Validator",
+    name: "Data Validator",
     href: "/tools/validator-json",
     icon: FileCheck,
-    description: "Validate JSON with error reporting",
+    description: "Validate JSON, YAML, XML, CSV, and TOML",
     category: "Validators",
   },
-  {
-    name: "XML Validator",
-    href: "/tools/validator-xml",
-    icon: FileCheck,
-    description: "Validate XML with error reporting",
-    category: "Validators",
-  },
-  {
-    name: "JSON / XML",
-    href: "/tools/json-xml-converter",
-    icon: Shuffle,
-    description: "Convert between JSON and XML",
-    category: "Converters",
-  },
+
   {
     name: "UUID Generator",
     href: "/tools/uuid",
@@ -162,20 +150,6 @@ const toolItems = [
     category: "Converters",
   },
   {
-    name: "YAML Validator",
-    href: "/tools/validator-yaml",
-    icon: FileCheck,
-    description: "Validate YAML with error reporting",
-    category: "Validators",
-  },
-  {
-    name: "CSV Validator",
-    href: "/tools/validator-csv",
-    icon: FileCheck,
-    description: "Validate CSV structure and data",
-    category: "Validators",
-  },
-  {
     name: "Random Data",
     href: "/tools/random-data-generator",
     icon: Database,
@@ -196,13 +170,7 @@ const toolItems = [
     description: "Encode and decode URL characters",
     category: "Converters",
   },
-  {
-    name: "JSON / CSV",
-    href: "/tools/json-csv-converter",
-    icon: FileText,
-    description: "Convert JSON to CSV format",
-    category: "Converters",
-  },
+
   {
     name: "Hex / RGB / HSL",
     href: "/tools/color-hex-converter",
@@ -245,19 +213,34 @@ const toolItems = [
     description: "Generate MD5, SHA, CRC hashes",
     category: "Crypto",
   },
-  {
-    name: "JSON / YAML",
-    href: "/tools/json-yaml-converter",
-    icon: Shuffle,
-    description: "Convert between JSON and YAML",
-    category: "Converters",
-  },
+
   {
     name: "cURL / Hurl",
     href: "/tools/curl-hurl-converter",
     icon: Shuffle,
     description: "Convert cURL to Hurl format",
     category: "Converters",
+  },
+  {
+    name: "Data Converter",
+    href: "/tools/data-converter",
+    icon: Shuffle,
+    description: "Convert between JSON, XML, CSV, YAML, and TOML",
+    category: "Converters",
+  },
+  {
+    name: "Key Generator",
+    href: "/tools/key-generator",
+    icon: Key,
+    description: "Generate RSA, EC, Ed25519, and ML-KEM key pairs",
+    category: "Crypto",
+  },
+  {
+    name: "Text Sorter",
+    href: "/tools/text-sorter",
+    icon: CaseSensitive,
+    description: "Sort lines, remove duplicates, trim whitespace",
+    category: "Misc",
   },
 ];
 
@@ -277,6 +260,13 @@ export default function HomePage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const { getFavorites, getMostUsed, getRecentlyUsed, isFavorite, toggleFavorite } = useToolTracking();
+  const { modSymbol } = useOsDetect();
+
+  useHead({
+    title: "DevToolbox - Privacy-First Developer Tools",
+    description: "Free, privacy-first developer toolkit. JSON editor, JWT decoder, Base64 encoder, UUID generator, regex validator, and 30+ tools. 100% client-side, no data leaves your browser.",
+    canonical: "https://devtoolbox.co",
+  });
 
   const favorites = getFavorites();
   const mostUsed = getMostUsed(3);
@@ -291,10 +281,10 @@ export default function HomePage() {
     return matchesSearch && matchesCategory;
   });
 
-  const handleFavoriteClick = (e: React.MouseEvent, toolId: string) => {
+  const handleFavoriteClick = (e: React.MouseEvent, toolId: string, toolName: string) => {
     e.preventDefault();
     e.stopPropagation();
-    toggleFavorite(toolId);
+    toggleFavorite(toolId, toolName);
   };
 
   const getToolById = (id: string) => {
@@ -309,23 +299,23 @@ export default function HomePage() {
     return (
       <Link
         key={tool.href}
-        href={tool.href}
-        className="group flex items-start gap-3.5 rounded-2xl border bg-card p-4 transition-all hover:bg-secondary/50 hover:shadow-sm relative"
+        to={tool.href}
+        className="group flex items-start gap-3.5 rounded-lg border bg-card p-4 transition-all hover:bg-gradient-to-br hover:from-primary/5 hover:to-primary/5 hover:shadow-md hover:border-primary/20 relative"
       >
         {showFavorite && (
           <button
-            onClick={(e) => handleFavoriteClick(e, toolId)}
+            onClick={(e) => handleFavoriteClick(e, toolId, tool.name)}
             className="absolute top-3 right-3 p-1 rounded-lg hover:bg-secondary transition-colors z-10"
             aria-label={isFav ? "Remove from favorites" : "Add to favorites"}
           >
             <Star
               className={`h-4 w-4 transition-colors ${
-                isFav ? "fill-yellow-500 text-yellow-500" : "text-muted-foreground"
+                isFav ? "fill-primary text-primary" : "text-muted-foreground"
               }`}
             />
           </button>
         )}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground transition-colors group-hover:bg-foreground group-hover:text-background">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground transition-colors group-hover:bg-foreground group-hover:text-background">
           <Icon className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="flex-1 min-w-0 pr-6">
@@ -342,7 +332,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 lg:px-8 lg:py-12">
+    <div className="px-4 py-8 lg:px-8 lg:py-12">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-balance lg:text-3xl">
@@ -354,9 +344,9 @@ export default function HomePage() {
         
         {/* Privacy Features */}
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="flex items-start gap-3 rounded-xl border bg-card/50 p-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-green-500/10">
-              <Shield className="h-4 w-4 text-green-600 dark:text-green-500" aria-hidden="true" />
+          <div className="flex items-start gap-3 rounded-lg border bg-gradient-to-br from-primary/5 to-primary/5 p-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+              <Shield className="h-4 w-4 text-primary" aria-hidden="true" />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-xs font-semibold text-foreground">Privacy Guaranteed</h3>
@@ -366,9 +356,9 @@ export default function HomePage() {
             </div>
           </div>
           
-          <div className="flex items-start gap-3 rounded-xl border bg-card/50 p-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-              <Zap className="h-4 w-4 text-blue-600 dark:text-blue-500" aria-hidden="true" />
+          <div className="flex items-start gap-3 rounded-lg border bg-gradient-to-br from-primary/5 to-primary/5 p-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+              <Zap className="h-4 w-4 text-primary" aria-hidden="true" />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-xs font-semibold text-foreground">100% Client-Side</h3>
@@ -378,9 +368,9 @@ export default function HomePage() {
             </div>
           </div>
           
-          <div className="flex items-start gap-3 rounded-xl border bg-card/50 p-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-500/10">
-              <Ban className="h-4 w-4 text-purple-600 dark:text-purple-500" aria-hidden="true" />
+          <div className="flex items-start gap-3 rounded-lg border bg-gradient-to-br from-primary/5 to-primary/5 p-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+              <Ban className="h-4 w-4 text-primary" aria-hidden="true" />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-xs font-semibold text-foreground">Ads-Free Experience</h3>
@@ -388,6 +378,43 @@ export default function HomePage() {
                 No tracking, no analytics, no ads
               </p>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Keyboard Shortcuts & Usability */}
+      <div className="mb-8 rounded-lg border bg-card p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+            <Keyboard className="h-4 w-4 text-primary" aria-hidden="true" />
+          </div>
+          <div>
+            <h3 className="text-xs font-semibold text-foreground">Keyboard Shortcuts & Smart Features</h3>
+            <p className="text-xs text-muted-foreground">Every tool supports these shortcuts and behaviors</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex items-center gap-2 rounded-md bg-secondary/50 px-3 py-2">
+            <kbd className="inline-flex items-center gap-0.5 rounded border bg-background px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground">
+              {modSymbol}+Shift+X
+            </kbd>
+            <span className="text-xs text-muted-foreground">Clear all</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-md bg-secondary/50 px-3 py-2">
+            <kbd className="inline-flex items-center gap-0.5 rounded border bg-background px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground">
+              {modSymbol}+Enter
+            </kbd>
+            <span className="text-xs text-muted-foreground">Convert / Run</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-md bg-secondary/50 px-3 py-2">
+            <kbd className="inline-flex items-center gap-0.5 rounded border bg-background px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground">
+              {modSymbol}+Shift+C
+            </kbd>
+            <span className="text-xs text-muted-foreground">Copy output</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-md bg-secondary/50 px-3 py-2">
+            <Zap className="h-3 w-3 text-primary shrink-0" aria-hidden="true" />
+            <span className="text-xs text-muted-foreground">Auto-convert as you type</span>
           </div>
         </div>
       </div>
@@ -412,11 +439,12 @@ export default function HomePage() {
             key={cat}
             type="button"
             onClick={() => setActiveCategory(cat)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`shrink-0 px-3 py-1.5 text-xs font-medium transition-colors ${
               activeCategory === cat
                 ? "bg-foreground text-background"
                 : "bg-secondary text-muted-foreground hover:text-foreground"
             }`}
+            style={{ borderRadius: "calc(var(--radius) + 0.5rem)" }}
           >
             {cat}
           </button>
@@ -427,10 +455,10 @@ export default function HomePage() {
       {favorites.length > 0 && search === "" && activeCategory === "All" && (
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-4">
-            <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+            <Star className="h-4 w-4 fill-primary text-primary" />
             <h2 className="text-sm font-semibold">Favorites</h2>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {favorites.map((usage) => {
               const tool = getToolById(usage.id);
               return tool ? renderToolCard(tool) : null;
@@ -446,7 +474,7 @@ export default function HomePage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold">Most Used</h2>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {mostUsed.map((usage) => {
               const tool = getToolById(usage.id);
               return tool ? renderToolCard(tool) : null;
@@ -462,7 +490,7 @@ export default function HomePage() {
             <History className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold">Recently Used</h2>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {recentlyUsed.map((usage) => {
               const tool = getToolById(usage.id);
               return tool ? renderToolCard(tool) : null;
@@ -479,7 +507,7 @@ export default function HomePage() {
       )}
 
       {/* Tool Grid */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 4xl:grid-cols-8">
         {filtered.map((tool) => renderToolCard(tool))}
       </div>
 
@@ -504,6 +532,14 @@ export default function HomePage() {
             </a>
           </p>
           <div className="flex gap-4">
+            <a
+              href="https://gitlab.com/Zanoshky/dev-toolbox"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              GitLab
+            </a>
             <a
               href="https://github.com/Zanoshky/DevTools"
               target="_blank"

@@ -1,4 +1,3 @@
-"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -6,10 +5,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ToolLayout } from "@/components/tool-layout";
 import { CopyInput } from "@/components/copy-input";
-import { CopyTextarea } from "@/components/copy-textarea";
+import { CodeEditor } from "@/components/code-editor";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { EmptyState } from "@/components/empty-state";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import {
   Select,
   SelectContent,
@@ -23,6 +25,8 @@ import {
   Info,
   Lightbulb,
   Copy,
+  Trash2,
+  Regex,
 } from "lucide-react";
 
 interface Match {
@@ -108,22 +112,41 @@ export default function RegexTesterPage() {
         .map(([flag]) => flag)
         .join("");
 
+      // Limit test string length to prevent ReDoS on pathological patterns
+      const MAX_TEST_LENGTH = 100_000;
+      const safeTestString = testString.length > MAX_TEST_LENGTH
+        ? testString.slice(0, MAX_TEST_LENGTH)
+        : testString;
+
       const regex = new RegExp(pattern, flagString);
       const foundMatches: Match[] = [];
+
+      // Use a timeout to abort runaway regex execution (ReDoS protection)
+      const startTime = performance.now();
+      const TIMEOUT_MS = 2000;
 
       if (flags.g) {
         let match: RegExpExecArray | null;
         const regexCopy = new RegExp(pattern, flagString);
-        while ((match = regexCopy.exec(testString)) !== null) {
+        while ((match = regexCopy.exec(safeTestString)) !== null) {
+          if (performance.now() - startTime > TIMEOUT_MS) {
+            setError("Regex execution timed out - pattern may be too complex (possible ReDoS)");
+            setHighlightedText(escapeHtml(safeTestString));
+            return;
+          }
           foundMatches.push({
             text: match[0],
             index: match.index,
             groups: match.groups || {},
             length: match[0].length,
           });
+          // Prevent infinite loop on zero-length matches
+          if (match[0].length === 0) {
+            regexCopy.lastIndex++;
+          }
         }
       } else {
-        const match = regex.exec(testString);
+        const match = regex.exec(safeTestString);
         if (match) {
           foundMatches.push({
             text: match[0],
@@ -175,6 +198,29 @@ export default function RegexTesterPage() {
     return () => clearTimeout(timer);
   }, [pattern, testString, flags, testRegex]);
 
+  const isEmpty = pattern === "" && testString === "";
+
+  const handleClear = useCallback(() => {
+    setPattern("");
+    setTestString("");
+    setFlags({ g: true, i: true, m: false, s: false, u: false });
+    setMatches([]);
+    setError("");
+    setHighlightedText("");
+  }, []);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
+
   const loadPattern = (key: string) => {
     const selected = commonPatterns[key as keyof typeof commonPatterns];
     if (selected) {
@@ -203,8 +249,12 @@ export default function RegexTesterPage() {
     }
   };
 
-  const copyCode = (language: string) => {
-    navigator.clipboard.writeText(generateCode(language));
+  const copyCode = async (language: string) => {
+    try {
+      await navigator.clipboard.writeText(generateCode(language));
+    } catch {
+      // clipboard not available
+    }
   };
 
   return (
@@ -213,13 +263,12 @@ export default function RegexTesterPage() {
       description="Test and validate regular expressions with real-time matching and code generation"
     >
       <div className="space-y-3">
-        {/* Configuration Toolbar */}
-        <div className="p-3 bg-card border rounded-lg space-y-3">
-          <div className="space-y-2">
-            <Label className="text-xs">Quick Patterns</Label>
+        {/* Action Toolbar */}
+        <ActionToolbar
+          left={
             <Select onValueChange={loadPattern}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Select a common pattern..." />
+              <SelectTrigger className="h-8 text-xs w-[220px]">
+                <SelectValue placeholder="Quick pattern..." />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(commonPatterns).map(([key, { description }]) => (
@@ -229,62 +278,41 @@ export default function RegexTesterPage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          }
+          right={
+            <Button
+              onClick={handleClear}
+              variant="outline"
+              size="sm"
+              disabled={isEmpty}
+              aria-label="Clear all"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          }
+        />
 
-          <div className="space-y-2">
-            <Label className="text-xs">Flags</Label>
-            <div className="flex flex-wrap gap-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="flag-g"
-                  checked={flags.g}
-                  onCheckedChange={(c) => setFlags((prev) => ({ ...prev, g: !!c }))}
-                />
-                <Label htmlFor="flag-g" className="cursor-pointer text-xs">
-                  g (global)
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="flag-i"
-                  checked={flags.i}
-                  onCheckedChange={(c) => setFlags((prev) => ({ ...prev, i: !!c }))}
-                />
-                <Label htmlFor="flag-i" className="cursor-pointer text-xs">
-                  i (ignore case)
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="flag-m"
-                  checked={flags.m}
-                  onCheckedChange={(c) => setFlags((prev) => ({ ...prev, m: !!c }))}
-                />
-                <Label htmlFor="flag-m" className="cursor-pointer text-xs">
-                  m (multiline)
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="flag-s"
-                  checked={flags.s}
-                  onCheckedChange={(c) => setFlags((prev) => ({ ...prev, s: !!c }))}
-                />
-                <Label htmlFor="flag-s" className="cursor-pointer text-xs">
-                  s (dotAll)
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="flag-u"
-                  checked={flags.u}
-                  onCheckedChange={(c) => setFlags((prev) => ({ ...prev, u: !!c }))}
-                />
-                <Label htmlFor="flag-u" className="cursor-pointer text-xs">
-                  u (unicode)
-                </Label>
-              </div>
-            </div>
+        {/* Flags */}
+        <div className="flex flex-wrap gap-3">
+          <div className="flex items-center space-x-2">
+            <Checkbox id="flag-g" checked={flags.g} onCheckedChange={(c) => setFlags((prev) => ({ ...prev, g: !!c }))} />
+            <Label htmlFor="flag-g" className="cursor-pointer text-xs">g (global)</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox id="flag-i" checked={flags.i} onCheckedChange={(c) => setFlags((prev) => ({ ...prev, i: !!c }))} />
+            <Label htmlFor="flag-i" className="cursor-pointer text-xs">i (ignore case)</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox id="flag-m" checked={flags.m} onCheckedChange={(c) => setFlags((prev) => ({ ...prev, m: !!c }))} />
+            <Label htmlFor="flag-m" className="cursor-pointer text-xs">m (multiline)</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox id="flag-s" checked={flags.s} onCheckedChange={(c) => setFlags((prev) => ({ ...prev, s: !!c }))} />
+            <Label htmlFor="flag-s" className="cursor-pointer text-xs">s (dotAll)</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox id="flag-u" checked={flags.u} onCheckedChange={(c) => setFlags((prev) => ({ ...prev, u: !!c }))} />
+            <Label htmlFor="flag-u" className="cursor-pointer text-xs">u (unicode)</Label>
           </div>
         </div>
 
@@ -295,21 +323,19 @@ export default function RegexTesterPage() {
             value={pattern}
             onChange={setPattern}
             placeholder="Enter regex pattern..."
-            className="font-mono text-xs"
           />
         </div>
 
         {/* Input/Output Side by Side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Test String */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Test String</Label>
-            <CopyTextarea
+            <CodeEditor language="text"
               value={testString}
               onChange={setTestString}
               placeholder="Enter text to test..."
-              rows={20}
-              className="font-mono text-xs"
+
             />
           </div>
 
@@ -317,7 +343,13 @@ export default function RegexTesterPage() {
           <div className="space-y-2">
             <Label className="text-sm font-medium">Results</Label>
             <div className="border rounded-lg p-3 bg-card min-h-[520px] overflow-y-auto">
-              {error ? (
+              {isEmpty ? (
+                <EmptyState
+                  icon={Regex}
+                  message="Enter a regex pattern and test string to see matches"
+                  className="min-h-[480px]"
+                />
+              ) : error ? (
                 <Alert variant="destructive" className="text-xs">
                   <XCircle className="h-3 w-3" />
                   <AlertDescription>{error}</AlertDescription>
@@ -325,7 +357,11 @@ export default function RegexTesterPage() {
               ) : (
                 <div className="space-y-3">
 
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className={`flex items-center gap-2 mb-3 p-3 rounded-lg border ${
+                    matches.length > 0 
+                      ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" 
+                      : "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800"
+                  }`}>
                     {matches.length > 0 ? (
                       <>
                         <CheckCircle className="h-5 w-5 text-green-500" />

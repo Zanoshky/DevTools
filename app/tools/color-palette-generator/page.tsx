@@ -1,14 +1,15 @@
-"use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ToolLayout } from "@/components/tool-layout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Copy, Check, Palette, RefreshCw, Download } from "lucide-react";
+import { Copy, Check, Palette, RefreshCw, Download, Trash2 } from "lucide-react";
 import { CopyInput } from "@/components/copy-input";
 import { Badge } from "@/components/ui/badge";
+import { ActionToolbar } from "@/components/action-toolbar";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { toast } from "sonner";
 
 export default function ColorPaletteGeneratorPage() {
@@ -49,22 +50,26 @@ export default function ColorPaletteGeneratorPage() {
     setPalette(colors);
   };
 
-  const copyToClipboard = (text: string, index: number) => {
-    if (navigator?.clipboard?.writeText) {
-      navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
       setCopied(index);
       toast.success("Copied to clipboard!");
       setTimeout(() => setCopied(null), 2000);
+    } catch {
+      toast.error("Failed to copy to clipboard");
     }
   };
 
-  const copyAllColors = () => {
-    if (navigator?.clipboard?.writeText) {
+  const copyAllColors = async () => {
+    try {
       const allColors = palette.join('\n');
-      navigator.clipboard.writeText(allColors);
+      await navigator.clipboard.writeText(allColors);
       setCopied(-1);
       toast.success("All colors copied!");
       setTimeout(() => setCopied(null), 2000);
+    } catch {
+      toast.error("Failed to copy to clipboard");
     }
   };
 
@@ -126,22 +131,56 @@ export default function ColorPaletteGeneratorPage() {
       : hex;
   };
 
+  const isEmpty = baseColor === "#3b82f6" && shades === 5 && palette.length === 0;
+
+  const handleClear = useCallback(() => {
+    setBaseColor("#3b82f6");
+    setShades(5);
+    setPalette([]);
+    setCopied(null);
+  }, []);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "x",
+        ctrl: true,
+        shift: true,
+        action: handleClear,
+        description: "Clear all",
+      },
+    ],
+  });
+
   return (
     <ToolLayout
       title="Color Palette Generator"
       description="Generate beautiful color palettes with shades and tints from a base color"
     >
       <div className="space-y-3">
-        {/* Controls */}
-        <div className="flex items-center justify-end gap-3">
-          <Button onClick={generatePalette} size="sm" className="gap-2">
-            <RefreshCw className="h-3 w-3" />
-            Generate Palette
-          </Button>
-        </div>
+        {/* Action Toolbar */}
+        <ActionToolbar
+          right={
+            <>
+              <Button onClick={generatePalette} size="sm" className="gap-2">
+                <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                Generate Palette
+              </Button>
+              <Button
+                onClick={handleClear}
+                variant="outline"
+                size="sm"
+                disabled={isEmpty}
+                aria-label="Clear all"
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            </>
+          }
+        />
 
         {/* Side-by-side layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Input Section */}
           <div className="space-y-3">
             {/* Base Color Input */}
@@ -170,6 +209,7 @@ export default function ColorPaletteGeneratorPage() {
                   value={baseColor}
                   onChange={(e) => setBaseColor(e.target.value)}
                   className="w-20 h-10 cursor-pointer"
+                  aria-label="Color picker"
                 />
               </div>
 
@@ -198,11 +238,12 @@ export default function ColorPaletteGeneratorPage() {
                 <Label className="text-sm font-medium">Color Swatches</Label>
                 <div className="grid grid-cols-3 gap-2">
                   {palette.map((color, i) => (
-                    <div
+                    <button
                       key={i}
-                      className="group relative cursor-pointer"
+                      type="button"
+                      className="group relative cursor-pointer text-left"
                       onClick={() => copyToClipboard(color, i)}
-                      title={`Click to copy ${color}`}
+                      aria-label={`Copy color ${color}`}
                     >
                       <div
                         className="aspect-square rounded-lg border-2 hover:scale-105 transition-all shadow-md hover:shadow-lg"
@@ -217,7 +258,7 @@ export default function ColorPaletteGeneratorPage() {
                       <div className="text-[10px] font-mono text-center mt-1 truncate">
                         {color}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -267,6 +308,7 @@ export default function ColorPaletteGeneratorPage() {
                             size="sm"
                             onClick={() => copyToClipboard(color, i)}
                             className="h-7 w-7 p-0"
+                            aria-label={`Copy ${color}`}
                           >
                             {copied === i ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                           </Button>
@@ -326,7 +368,12 @@ export default function ColorPaletteGeneratorPage() {
             ) : (
               <div className="p-3 bg-card border rounded-lg min-h-[520px] flex items-center justify-center">
                 <div className="text-center text-muted-foreground">
-                  <Palette className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <div className="relative mx-auto mb-4 w-16 h-16">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/10 rounded-full" />
+                    <div className="relative flex items-center justify-center h-full">
+                      <Palette className="h-8 w-8 opacity-50" />
+                    </div>
+                  </div>
                   <p className="text-sm">Click &quot;Generate Palette&quot; to create colors</p>
                 </div>
               </div>

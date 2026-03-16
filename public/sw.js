@@ -1,101 +1,103 @@
-const CACHE_NAME = 'devtoolbox-v1';
-const RUNTIME_CACHE = 'devtoolbox-runtime';
+const CACHE_NAME = 'devtoolbox-v3';
 
-// Assets to cache on install
+// Assets to precache on install for offline fallback
 const PRECACHE_ASSETS = [
   '/',
   '/privacy',
   '/manifest.json',
 ];
 
-// Install event - cache core assets
+// Only cache responses from our own origin and trusted CDNs
+const TRUSTED_ORIGINS = [
+  self.location.origin,
+  'https://fonts.googleapis.com',
+  'https://fonts.gstatic.com',
+];
+
+// Never cache these paths
+const CACHE_BLOCKLIST = [
+  '/api/',
+  '/sw.js',
+];
+
+function isTrustedOrigin(url) {
+  return TRUSTED_ORIGINS.some(origin => url.startsWith(origin));
+}
+
+function isBlocklisted(url) {
+  return CACHE_BLOCKLIST.some(path => new URL(url).pathname.startsWith(path));
+}
+
+// Install - precache core assets, activate immediately
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing new service worker...');
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
-    }).then(() => {
-      console.log('[SW] Installation complete - waiting for activation');
-      // Don't skip waiting - let PWAUpdatePrompt handle it
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS))
   );
 });
 
-// Activate event - clean up old caches
+// Activate - clean old caches, claim clients immediately
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating new service worker...');
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      // Only delete old cache versions, NOT localStorage or IndexedDB
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME && name !== RUNTIME_CACHE)
-          .map((name) => {
-            console.log('[SW] Deleting old cache:', name);
-            return caches.delete(name);
-          })
-      );
-    }).then(() => {
-      console.log('[SW] Claiming clients - localStorage and IndexedDB are preserved');
-      return self.clients.claim();
-    }).then(() => {
-      // Notify all clients about the update
-      return self.clients.matchAll().then((clients) => {
-        clients.forEach((client) => {
-          client.postMessage({
-            type: 'SW_UPDATED',
-            message: 'Service worker updated - your data is safe'
+    caches.keys()
+      .then((names) =>
+        Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
+      )
+      .then(() => self.clients.claim())
+      .then(() =>
+        self.clients.matchAll().then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({
+              type: 'SW_UPDATED',
+              message: 'Service worker updated - your data is safe',
+            });
           });
-        });
-      });
-    })
+        })
+      )
   );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch - network-first for everything, fall back to cache when offline
 self.addEventListener('fetch', (event) => {
-  // Skip cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) {
-    return;
-  }
+  const url = event.request.url;
 
-  // Skip non-GET requests
-  if (event.request.method !== 'GET') {
-    return;
-  }
+  if (event.request.method !== 'GET') return;
+  if (!isTrustedOrigin(url)) return;
+  if (isBlocklisted(url)) return;
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
+    fetch(event.request)
+      .then((response) => {
+        // Got a network response - cache it for offline use
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      })
+      .catch(() => {
+        // Network failed - try cache
+        return caches.match(event.request).then((cached) => {
+          if (cached) return cached;
 
-      return caches.open(RUNTIME_CACHE).then((cache) => {
-        return fetch(event.request).then((response) => {
-          // Cache successful responses
-          if (response.status === 200) {
-            cache.put(event.request, response.clone());
+          // For navigation requests, fall back to cached root
+          if (event.request.mode === 'navigate') {
+            return caches.match('/');
           }
-          return response;
-        }).catch(() => {
-          // Return offline page or fallback
-          return new Response('Offline - please check your connection', {
+
+          return new Response('Offline', {
             status: 503,
             statusText: 'Service Unavailable',
-            headers: new Headers({
-              'Content-Type': 'text/plain',
-            }),
+            headers: new Headers({ 'Content-Type': 'text/plain' }),
           });
         });
-      });
-    })
+      })
   );
 });
 
 // Listen for messages from clients
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
-    console.log('[SW] Received SKIP_WAITING message');
     self.skipWaiting();
   }
 });
